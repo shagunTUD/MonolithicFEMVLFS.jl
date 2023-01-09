@@ -28,3 +28,9 @@ Manifest.toml
 *.png
 *.vtu
 *.pvd
+*.vscode
+*.pvsm
+
+# Folders
+output/
+sims_*/
