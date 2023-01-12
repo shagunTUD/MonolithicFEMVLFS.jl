@@ -2,13 +2,16 @@ module BeamMultJoints_freq
 
 using Revise
 using Gridap
+using Printf
 using Plots
 using DrWatson
 using WaveSpec
 using .Constants
+using .WaveTimeSeries
+using WriteVTK
 
 
-name::String = "data/sims_202301/mem_freq_damp"
+name::String = "data/sims_202301/mem_time_damp"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -21,19 +24,23 @@ Lm = 2*H0 #m
 @show g #defined in .Constants
 mᵨ = 0.9 #mass per unit area of membrane / ρw
 Tᵨ = 0.1*g*H0*H0 #T/ρw
-@show τ = 0.5#damping coeff
-
+@show τ = 0.5 #damping coeff
 
 # Wave parameters
-λ = 0.5*Lm #21 #13.95 #0.5*Lm #m #wave-length
+λ = 0.5*Lm #m #wave-length
 k = 2π/λ
 ω = sqrt(g*k*tanh(k*H0))
 η₀ = ω/g #m #wave-amplitude
 T = 2π/ω
-ηᵢₙ(x) = η₀*exp(im*k*x[1])
-ϕᵢₙ(x) = -im*(η₀*ω/k)*(cosh(k*(H0 + x[2])) / sinh(k*H0))*exp(im*k*x[1])
-vxᵢₙ(x) = (η₀*ω)*(cosh(k*(H0 + x[2])) / sinh(k*H0))*exp(im*k*x[1])
-vzfsᵢₙ(x) = -im*ω*η₀*exp(im*k*x[1]) #???
+ph0 = π/2
+ηᵢₙ(x,t) = η₀*cos(k*x[1]-ω*t + ph0)
+ϕᵢₙ(x,t) = (η₀*ω/k)*(cosh(k*(H0 + x[2])) / sinh(k*H0))*sin(k*x[1]-ω*t + ph0)
+vᵢₙ(x,t) = -(η₀*ω)*(cosh(k*(H0 + x[2])) / sinh(k*H0))*cos(k*x[1]-ω*t + ph0)
+vzᵢₙ(x,t) = ω*η₀*sin(k*x[1]-ω*t + ph0)
+ηᵢₙ(t::Real) = x -> ηᵢₙ(x,t)
+ϕᵢₙ(t::Real) = x -> ϕᵢₙ(x,t)
+vᵢₙ(t::Real) = x -> vᵢₙ(x,t)
+vzᵢₙ(t::Real) = x -> vzᵢₙ(x,t)
 @show λ
 @show T
 @show η₀
@@ -66,11 +73,22 @@ xm₁ = xm₀ + Lm
 println()
 
 
+# Time stepping
+γₜ = 0.5
+βₜ = 0.25
+t₀ = 0.0
+Δt = T/40
+outΔt = T/4
+tf = 15*T
+∂uₜ_∂u = γₜ/(βₜ*Δt)
+∂uₜₜ_∂u = 1/(βₜ*Δt^2)
+
+
 # Numeric constants
 h = LΩ / nx
 γ = 1.0*order*(order-1)/h
 βₕ = 0.5
-αₕ = -im*ω/g * (1-βₕ)/βₕ
+αₕ = ∂uₜ_∂u/g * (1-βₕ)/βₕ
 @show h
 @show βₕ
 @show αₕ
@@ -79,13 +97,12 @@ println()
 
 # Damping
 μ₀ = 2.5
-μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
-μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
+μ₁ᵢₙ(x::VectorValue) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
+μ₁ₒᵤₜ(x::VectorValue) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
 μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*k
 μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
-ηd(x) = μ₂ᵢₙ(x)*ηᵢₙ(x)
-∇ₙϕd(x) = μ₁ᵢₙ(x)*vzfsᵢₙ(x) #???
-
+ηd(t) = x -> μ₂ᵢₙ(x)*ηᵢₙ(x,t)
+∇ₙϕd(t) = x -> μ₁ᵢₙ(x)*vzᵢₙ(x,t)
 
 
 # Mesh
@@ -192,60 +209,110 @@ dΛmb = Measure(Λmb,degree)
 
 
 # Dirichlet Fnc
-gη(x) = ComplexF64(0.0)
+gη(x,t) = 0.0
+gη(t) = x -> gη(x,t)
 
 # FE spaces
 reffe = ReferenceFE(lagrangian,Float64,order)
-V_Ω = TestFESpace(Ω, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64})
-V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64})
-V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64},
+V_Ω = TestFESpace(Ω, reffe, conformity=:H1)
+V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1)
+V_Γη = TestFESpace(Γη, reffe, conformity=:H1,
   dirichlet_tags=["mem_bnd"])
-U_Ω = TrialFESpace(V_Ω)
-U_Γκ = TrialFESpace(V_Γκ)
-U_Γη = TrialFESpace(V_Γη, gη)
-X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
+U_Ω = TransientTrialFESpace(V_Ω)
+U_Γκ = TransientTrialFESpace(V_Γκ)
+U_Γη = TransientTrialFESpace(V_Γη, gη)
+X = TransientMultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
 
 # Weak form
 ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
+m((ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
+c((ϕₜ,κₜ,ηₜ),(w,u,v)) = 
+  ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
+  ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
+  ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
+  ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm +
+  ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
 a((ϕ,κ,η),(w,u,v)) =      
   ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
-  ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
-  ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-    - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
-  ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-    - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
-  ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
-    - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
-  ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
+  ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
+  ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
+  ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2  +
+  ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm + 
+  ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
 
-l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
+l(t,(w,u,v)) =  
+  ∫( w*vᵢₙ(t) )dΓin - 
+  ∫( ηd(t)*w - ∇ₙϕd(t)*(u + αₕ*w) )dΓd1
 
 
 # Solution
-op = AffineFEOperator(a,l,X,Y)
-(ϕₕ,κₕ,ηₕ) = solve(op)
+op = TransientConstantMatrixFEOperator(m,c,a,l,X,Y)
+ls = LUSolver()
+ode_solver = Newmark(ls,Δt,γₜ,βₜ)
+
+# Initial solution
+u0 = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
+u0t = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
+u0tt = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
+
+uht = solve(ode_solver,op,(u0,u0t,u0tt),t₀,tf)
 
 if vtk_output == true
-  writevtk(Ω,filename * "_O_sol.vtu",
-    cellfields = ["phi_re" => real(ϕₕ),"phi_im" => imag(ϕₕ),
-    "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ)])
-  writevtk(Γκ,filename * "_Gk_sol.vtu",
-    cellfields = ["eta_re" => real(κₕ),"eta_im" => imag(κₕ),
-    "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ)])
-  writevtk(Γη,filename * "_Ge_sol.vtu",
-    cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
-    "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])
+  pvd_Ω = paraview_collection(filename * "_O_sol", append=false)
+  pvd_Γκ = paraview_collection(filename * "_Gk_sol", append=false)
+  pvd_Γη = paraview_collection(filename * "_Ge_sol", append=false)
 end
 
-data = Dict("ϕₕ" => ϕₕ,
-            "κₕ" => κₕ,
-            "ηₕ" => ηₕ)
+if vtk_output == true
+  tpr = @sprintf("%5.3f",t₀)                    
+  tval = @sprintf("%d",round(Int64,t₀*1000))
+  ϕₕ, κₕ, ηₕ = u0
+  pvd_Ω[t₀] = createvtk(Ω,
+    filename * "_O_sol" * "_$tval.vtu",
+    cellfields = ["phi" => ϕₕ])
+  pvd_Γκ[t₀] = createvtk(Γκ,
+    filename * "_Gk_sol" * "_$tval.vtu",
+    cellfields = ["kappa" => κₕ])
+  pvd_Γη[t₀] = createvtk(Γη,
+    filename * "_Ge_sol" * "_$tval.vtu",
+    cellfields = ["eta" => ηₕ])
+end    
 
-wsave(filename*"_data.jld2", data)
+
+# Execute
+@show outMod = round(Int64,outΔt/Δt);
+
+for (uh, t) in uht  
+    ϕₕ, κₕ, ηₕ = uh
+    tpr = @sprintf("%5.3f",t)                    
+    tval = @sprintf("%d",round(Int64,t*1000))
+
+    if(round(t/Δt) % outMod != 0)
+      println("Time : $tpr \t", round(t/Δt) / outMod)
+      continue
+    end
+
+    println("Time : $tpr \t", round(t/Δt) / outMod, "vtk")
+    
+    if vtk_output == true
+      pvd_Ω[t] = createvtk(Ω,
+        filename * "_O_sol" * "_$tval.vtu",
+        cellfields = ["phi" => ϕₕ])
+      pvd_Γκ[t] = createvtk(Γκ,
+        filename * "_Gk_sol" * "_$tval.vtu",
+        cellfields = ["kappa" => κₕ])
+      pvd_Γη[t] = createvtk(Γη,
+        filename * "_Ge_sol" * "_$tval.vtu",
+        cellfields = ["eta" => ηₕ])
+    end    
+end
+
+if vtk_output == true
+  vtk_save(pvd_Ω)
+  vtk_save(pvd_Γκ)
+  vtk_save(pvd_Γη)
+end
 
 end
