@@ -10,6 +10,7 @@ using .Jonswap
 using DataFrames:DataFrame
 using DataFrames:Matrix
 
+
 function run_freq(ω, η₀, α)
   # Wave parameters
   k = dispersionRelAng(H0, ω; msg=false)
@@ -37,27 +38,37 @@ function run_freq(ω, η₀, α)
   ηd(x) = μ₂ᵢₙ(x)*ηᵢₙ(x)
   ∇ₙϕd(x) = μ₁ᵢₙ(x)*vzfsᵢₙ(x) #???
 
-
   # Weak form
   ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
-  a((ϕ,κ),(w,u)) =      
+  a((ϕ,κ,η),(w,u,v)) =      
     ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
       - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    
+      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
+      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
+    ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
 
-  l((w,u)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
-  
+  l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
+
+
   # Solution
   op = AffineFEOperator(a,l,X,Y)
-  (ϕₕ,κₕ) = solve(op)
+  (ϕₕ,κₕ,ηₕ) = solve(op)
 
-  # Because unable to do interpolation on κₕ
-  prb_κ = im*ω/g*ϕₕ(prbxy)     
 
-  prb_κ_x = (im*ω/g * (∇(ϕₕ)⋅VectorValue(1.0,0.0)) )(prbxy)
+  # Interpolation on prboes
+  prb_κ = zeros(ComplexF64, 1, length(prbxy))
+  prb_κ_x = zeros(ComplexF64, 1, length(prbxy))  
+  
+
+  prb_κ[prbfs] = κₕ(prbxy[prbfs])
+  prb_κ[prbmem] = ηₕ(prbxy[prbmem])
+
+  prb_κ_x[prbfs] = (∇(κₕ)⋅VectorValue(1.0,0.0))(prbxy[prbfs])
+  prb_κ_x[prbmem] = (∇(ηₕ)⋅VectorValue(1.0,0.0))(prbxy[prbmem])
  
   push!(prbDa, prb_κ)  
   push!(prbDa_x, prb_κ_x)  
@@ -66,11 +77,12 @@ function run_freq(ω, η₀, α)
 end
 
 
-name::String = "data/sims_202301/empt_freq_spec"
+name::String = "data/sims_202301/mem_freq_damp_spec"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
 
+ρw = 1025 #kg/m3 water
 H0 = 10 #m #still-water depth
 
 # Wave parameters
@@ -82,10 +94,11 @@ H0 = 10 #m #still-water depth
 # η₀ = η₀[2:end]
 # ω = [2*π/2.53079486745378, 2*π/2.0]
 # η₀ = [0.25, 0.25]
-T = 2:0.5:5
-ω = 2*π./T
+ω = 0.7:0.05:3.5
+T = 2*π./ω
 η₀ = 0.25*ones(length(ω))
 α = randomPhase(ω; seed=100)
+k = dispersionRelAng.(H0, ω; msg=false)
 
 
 # Peak Wave
@@ -95,20 +108,33 @@ kₚ = dispersionRelAng(H0, ωₚ; msg=false)
 println("Peak Wave T, L ", 2*pi/ωₚ, " ", 2*pi/kₚ)
 
 
+# Membrane parameters
+@show Lm = 2*H0 #m
+@show g #defined in .Constants
+@show mᵨ = 0.9 #mass per unit area of membrane / ρw
+@show Tᵨ = 0.1*g*H0*H0 #T/ρw
+@show τ = 0.0#damping coeff
+
+
 # Domain 
-nx = 2600
+nx = 4800
 ny = 20
 mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
-Ld = 10*H0 #damping zone length
-LΩ = 2*Ld + 3*2*H0
+Ld = 15*H0 #damping zone length
+LΩ = 18*H0 + 2*Ld
 x₀ = -Ld
 domain =  (x₀, x₀+LΩ, -H0, 0.0)
 partition = (nx, ny)
 xdᵢₙ = 0.0
 xdₒₜ = x₀ + LΩ - Ld
+xm₀ = xdᵢₙ + 8*H0
+xm₁ = xm₀ + Lm
+@show Lm
 @show LΩ
 @show domain
 @show partition
+@show (xm₀, xm₁)
+@show isinteger(Lm/LΩ*nx)
 @show LΩ/nx
 @show H0/ny
 println()
@@ -118,10 +144,10 @@ println()
 h = LΩ / nx
 γ = 1.0*order*(order-1)/h
 βₕ = 0.5
-#αₕ = -im*ω/g * (1-βₕ)/βₕ
+# αₕ = -im*ω/g * (1-βₕ)/βₕ
 @show h
 @show βₕ
-#@show αₕ
+# @show αₕ
 println()
 
 
@@ -131,6 +157,7 @@ println()
 μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
 # μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*kₚ
 # μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*kₚ
+
 
 
 # Mesh
@@ -168,6 +195,11 @@ add_tag_from_tags!(labels_Ω, "water", [9])       # assign the label "water" to 
 
 
 # Auxiliar functions
+function is_mem(xs) # Check if an element is inside the beam1
+  n = length(xs)
+  x = (1/n)*sum(xs)
+  (xm₀ <= x[1] <= xm₁ ) * ( x[2] ≈ 0.0)
+end
 function is_damping1(xs) # Check if an element is inside the damping zone 1
   n = length(xs)
   x = (1/n)*sum(xs)
@@ -179,33 +211,60 @@ function is_damping2(xs) # Check if an element is inside the damping zone 2
   (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
 end
 
-# Masking damping zones
+# Masking and Beam Triangulation
 xΓ = get_cell_coordinates(Γ)
+Γm_to_Γ_mask = lazy_map(is_mem, xΓ)
 Γd1_to_Γ_mask = lazy_map(is_damping1, xΓ)
 Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
+Γm = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γd1 = Triangulation(Γ, findall(Γd1_to_Γ_mask))
 Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
-Γfs = Triangulation(Γ, findall(!, Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
-Γκ = Γ
+Γfs = Triangulation(Γ, findall(!, Γm_to_Γ_mask .| 
+  Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
+Γη = Triangulation(Γ, findall(Γm_to_Γ_mask))
+Γκ = Triangulation(Γ, findall(!,Γm_to_Γ_mask))
+
+
+# Construct the tag for membrane boundary
+Λmb = Boundary(Γm)
+xΛmb = get_cell_coordinates(Λmb)
+xΛmb_n1 = findall(model.grid_topology.vertex_coordinates .== xΛmb[1])
+xΛmb_n2 = findall(model.grid_topology.vertex_coordinates .== xΛmb[2])
+new_entity = num_entities(labels_Ω) + 1
+labels_Ω.d_to_dface_to_entity[1][xΛmb_n1[1]] = new_entity
+labels_Ω.d_to_dface_to_entity[1][xΛmb_n2[1]] = new_entity
+add_tag!(labels_Ω, "mem_bnd", [new_entity])
+
 
 writevtk(model, filename*"_model")
 if vtk_output == true
   writevtk(Ω,filename*"_O")
   writevtk(Γ,filename*"_G")
+  writevtk(Γm,filename*"_Gm")  
   writevtk(Γd1,filename*"_Gd1")
   writevtk(Γd2,filename*"_Gd2")
   writevtk(Γfs,filename*"_Gfs")
+  writevtk(Λmb,filename*"_Lmb")  
 end
 
 
 # Measures
 degree = 2*order
 dΩ = Measure(Ω,degree)
+dΓm = Measure(Γm,degree)
 dΓd1 = Measure(Γd1,degree)
 dΓd2 = Measure(Γd2,degree)
 dΓfs = Measure(Γfs,degree)
 dΓin = Measure(Γin,degree)
+dΛmb = Measure(Λmb,degree)
 
+
+# Normals
+@show nΛmb = get_normal_vector(Λmb)
+
+
+# Dirichlet Fnc
+gη(x) = ComplexF64(0.0)
 
 # FE spaces
 reffe = ReferenceFE(lagrangian,Float64,order)
@@ -213,15 +272,27 @@ V_Ω = TestFESpace(Ω, reffe, conformity=:H1,
   vector_type=Vector{ComplexF64})
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
   vector_type=Vector{ComplexF64})
+V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+  vector_type=Vector{ComplexF64},
+  dirichlet_tags=["mem_bnd"]) #diri
+# V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+#   vector_type=Vector{ComplexF64})
 U_Ω = TrialFESpace(V_Ω)
 U_Γκ = TrialFESpace(V_Γκ)
-X = MultiFieldFESpace([U_Ω,U_Γκ])
-Y = MultiFieldFESpace([V_Ω,V_Γκ])
-
+U_Γη = TrialFESpace(V_Γη, gη)
+# U_Γη = TrialFESpace(V_Γη)
+X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
+Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
 # Probes
-prbx=range(-30, 90, 13)
+prbx=[  -20.0, 0.0, 20.0, 40.0, 50.0, 
+        52.7, 53.7, 55, 60.0, 80.0, 
+        85.0, 90.0, 95.0, 100.0, 120.0, 
+        125.0, 140.0, 160.0, 180.0, 200.0]
 @show prbxy = Point.(prbx, 0.0)
+prbmem = (xm₀ .<= prbx .<= xm₁ )
+@show prbfs = findall(!,prbmem)
+@show prbmem = findall(prbmem)
 
 lDa = zeros(ComplexF64, 1, length(prbxy))
 prbDa = DataFrame(lDa, :auto) # for η
@@ -232,24 +303,52 @@ run_freq.(ω, η₀, α)
 @show prbDa = prbDa[2:end, :]
 prbDa_x = prbDa_x[2:end, :]
 
+# for lprb in 1:length(prbxy)
+#   plt1 = plot(ω, abs.(prbDa[:,lprb]), linewidth=3, 
+#     xlabel = "ω (rad/s)",
+#     ylabel = "A (m)",
+#     title = "Amplitude")  
+
+#   plt2 = plot(ω, abs.(prbDa_x[:,lprb]), linewidth=3, 
+#     xlabel = "ω (rad/s)",
+#     ylabel = "dA/dx",
+#     title = "Slope Magnitude")
+  
+#   plt3 = plot(ω, angle.(prbDa[:,lprb]), linewidth=3, 
+#     xlabel = "ω (rad/s)",
+#     ylabel = "α (rad)",
+#     title = "Phase")  
+
+#   plt4 = plot(ω, angle.(prbDa_x[:,lprb]), linewidth=3, 
+#     xlabel = "ω (rad/s)",
+#     ylabel = "α (rad)",
+#     title = "Slope Phase")
+  
+#   xloc = prbx[lprb]
+#   pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
+#     plot_title = "x = $xloc")
+
+#   savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
+# end
+
 for lprb in 1:length(prbxy)
-  plt1 = plot(ω, abs.(prbDa[:,lprb]), linewidth=3, 
-    xlabel = "ω (rad/s)",
+  plt1 = plot(k*H0, abs.(prbDa[:,lprb]), linewidth=3, 
+    xlabel = "kh",
     ylabel = "A (m)",
     title = "Amplitude")  
 
-  plt2 = plot(ω, abs.(prbDa_x[:,lprb]), linewidth=3, 
-    xlabel = "ω (rad/s)",
+  plt2 = plot(k*H0, abs.(prbDa_x[:,lprb]), linewidth=3, 
+    xlabel = "kh",
     ylabel = "dA/dx",
     title = "Slope Magnitude")
   
-  plt3 = plot(ω, angle.(prbDa[:,lprb]), linewidth=3, 
-    xlabel = "ω (rad/s)",
+  plt3 = plot(k*H0, angle.(prbDa[:,lprb]), linewidth=3, 
+    xlabel = "kh",
     ylabel = "α (rad)",
     title = "Phase")  
 
-  plt4 = plot(ω, angle.(prbDa_x[:,lprb]), linewidth=3, 
-    xlabel = "ω (rad/s)",
+  plt4 = plot(k*H0, angle.(prbDa_x[:,lprb]), linewidth=3, 
+    xlabel = "kh",
     ylabel = "α (rad)",
     title = "Slope Phase")
   
@@ -260,8 +359,11 @@ for lprb in 1:length(prbxy)
   savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
 end
 
+k = dispersionRelAng.(H0, ω; msg=false)
+
 data = Dict("ω" => ω,
             "η₀" => η₀,
+            "k" => k,
             "prbxy" => prbxy,
             "prbDa" => prbDa,
             "prbDa_x" => prbDa_x)

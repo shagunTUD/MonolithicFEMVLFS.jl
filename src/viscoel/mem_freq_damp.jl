@@ -25,10 +25,14 @@ Tᵨ = 0.1*g*H0*H0 #T/ρw
 
 
 # Wave parameters
-λ = 0.5*Lm #21 #13.95 #0.5*Lm #m #wave-length
-k = 2π/λ
-ω = sqrt(g*k*tanh(k*H0))
-η₀ = ω/g #m #wave-amplitude
+# λ = 0.5*Lm #21 #13.95 #0.5*Lm #m #wave-length
+# k = 2π/λ
+# ω = sqrt(g*k*tanh(k*H0))
+# η₀ = ω/g #m #wave-amplitude
+ω = 1.8
+η₀ = 0.25
+k = dispersionRelAng(H0, ω)
+λ = 2*π/k
 T = 2π/ω
 ηᵢₙ(x) = η₀*exp(im*k*x[1])
 ϕᵢₙ(x) = -im*(η₀*ω/k)*(cosh(k*(H0 + x[2])) / sinh(k*H0))*exp(im*k*x[1])
@@ -43,17 +47,17 @@ println()
 
 
 # Domain 
-nx = 1000
+nx = 4800
 ny = 20
 mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
-Ld = Lm #damping zone length
-LΩ = 2*Ld + 3*Lm
+Ld = 15*H0 #damping zone length
+LΩ = 18*H0 + 2*Ld
 x₀ = -Ld
 domain =  (x₀, x₀+LΩ, -H0, 0.0)
 partition = (nx, ny)
 xdᵢₙ = 0.0
 xdₒₜ = x₀ + LΩ - Ld
-xm₀ = xdᵢₙ + Lm
+xm₀ = xdᵢₙ + 8*H0
 xm₁ = xm₀ + Lm
 @show Lm
 @show LΩ
@@ -200,12 +204,15 @@ V_Ω = TestFESpace(Ω, reffe, conformity=:H1,
   vector_type=Vector{ComplexF64})
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
   vector_type=Vector{ComplexF64})
+# V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+#   vector_type=Vector{ComplexF64},
+#   dirichlet_tags=["mem_bnd"])
 V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64},
-  dirichlet_tags=["mem_bnd"])
+  vector_type=Vector{ComplexF64})
 U_Ω = TrialFESpace(V_Ω)
 U_Γκ = TrialFESpace(V_Γκ)
-U_Γη = TrialFESpace(V_Γη, gη)
+# U_Γη = TrialFESpace(V_Γη, gη)
+U_Γη = TrialFESpace(V_Γη)
 X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 

@@ -32,23 +32,23 @@ println(ω[1], "\t", ω[2], "\t", ω[end])
 S = S[2:end]
 η₀ = η₀[2:end]
 α = randomPhase(ω; seed=100)
-# ω = [2*π/2.45, 2*π/2.55]
-# η₀ = [0.25, 0.25]
-# α = [0.0, 0.0]
+# ω = [2*π/2.0, 2*π/2.5, 2*π/4]
+# η₀ = [0.3, 0.4, 0.1]
+# @show α = randomPhase(ω; seed=100)
 
 # Wave parameters
 k = dispersionRelAng.(H0, ω; msg=false)
-λ = 2π/k
-T = 2π/ω
-ηᵢₙ(x,t) = η₀ .* cos.(k*x[1] - ω*t + α)
+@show λ = 2π/k
+@show T = 2π/ω
+ηᵢₙ(x,t) = sum( η₀ .* cos.(k*x[1] - ω*t + α) )
 ϕᵢₙ(x,t) = (η₀.*ω./k) .* (cosh.(k*(H0 + x[2])) ./ 
   sinh.(k*H0)) .* sin.(k*x[1]-ω*t + α)
-vᵢₙ(x,t) = -(η₀.*ω) .* (cosh.(k*(H0 + x[2])) ./ 
-  sinh.(k*H0)) .* cos.(k*x[1]-ω*t + α)
-vzᵢₙ(x,t) = ω .* η₀ .* sin.(k*x[1]-ω*t + α)
+vᵢₙ(x,t) = sum( -(η₀.*ω) .* (cosh.(k*(H0 + x[2])) ./ 
+  sinh.(k*H0)) .* cos.(k*x[1]-ω*t + α) )
+vzᵢₙ(x,t) = sum( ω .* η₀ .* sin.(k*x[1]-ω*t + α) )
 ηᵢₙ(t::Real) = x -> ηᵢₙ(x,t)
 ϕᵢₙ(t::Real) = x -> ϕᵢₙ(x,t)
-vᵢₙ(t::Real) = x -> sum(vᵢₙ(x,t))
+vᵢₙ(t::Real) = x -> vᵢₙ(x,t)
 vzᵢₙ(t::Real) = x -> vzᵢₙ(x,t)
 
 
@@ -82,9 +82,9 @@ println()
 # Time stepping
 θₜ = 0.5
 t₀ = 0.0
-Δt = Tₚ/40
-outΔt = Tₚ/4
-tf = 25*Tₚ
+Δt = 2.5/40#Tₚ/40
+outΔt = 5.0#Tₚ/2
+tf = 2.5*80#50*Tₚ
 ∂uₜ_∂u = θₜ*Δt
 
 
@@ -103,10 +103,10 @@ println()
 μ₀ = 2.5
 μ₁ᵢₙ(x::VectorValue) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
 μ₁ₒᵤₜ(x::VectorValue) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
-μ₂ᵢₙ(x) = sum(μ₁ᵢₙ(x)*k)
-μ₂ₒᵤₜ(x) = sum(μ₁ₒᵤₜ(x)*k)
-ηd(t) = x -> sum(μ₁ᵢₙ(x)*k.*ηᵢₙ(x,t))
-∇ₙϕd(t) = x -> sum(μ₁ᵢₙ(x)*vzᵢₙ(x,t))
+μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*kₚ
+μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*kₚ
+ηd(t) = x -> μ₁ᵢₙ(x)*kₚ*ηᵢₙ(x,t)
+∇ₙϕd(t) = x -> μ₁ᵢₙ(x)*vzᵢₙ(x,t)
 
 
 # Mesh
@@ -255,7 +255,7 @@ for (uh, t) in uht
     tval = @sprintf("%d",round(Int64,t*1000))    
 
     lDa[1] = t
-    lDa[2] = κₕ.free_values[1201] #middle-node
+    lDa[2] = κₕ.free_values[601] #middle-node
     @show lDa
     push!(prbDa, lDa)
 
