@@ -50,8 +50,8 @@ function run_freq(ω, η₀, α)
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
       - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
-      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
-    ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
+      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
+    #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
 
   l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
 
@@ -278,15 +278,15 @@ V_Ω = TestFESpace(Ω, reffe, conformity=:H1,
   vector_type=Vector{ComplexF64})
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
   vector_type=Vector{ComplexF64})
-V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64},
-  dirichlet_tags=["mem_bnd"]) #diri
 # V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-#   vector_type=Vector{ComplexF64})
+#   vector_type=Vector{ComplexF64},
+#   dirichlet_tags=["mem_bnd"]) #diri
+V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+  vector_type=Vector{ComplexF64})
 U_Ω = TrialFESpace(V_Ω)
 U_Γκ = TrialFESpace(V_Γκ)
-U_Γη = TrialFESpace(V_Γη, gη)
-# U_Γη = TrialFESpace(V_Γη)
+# U_Γη = TrialFESpace(V_Γη, gη)
+U_Γη = TrialFESpace(V_Γη)
 X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
