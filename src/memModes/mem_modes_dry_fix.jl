@@ -9,7 +9,7 @@ using .Constants
 using LinearAlgebra
 using TickTock
 
-name::String = "data/sims_202302/mem_modes_free"
+name::String = "data/sims_202302/mem_modes_dry_fix"
 order::Int = 1
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -183,80 +183,44 @@ V_Ω = TestFESpace(Ω, reffe, conformity=:H1,
   vector_type=Vector{ComplexF64})
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
   vector_type=Vector{ComplexF64})
-# V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-#   vector_type=Vector{ComplexF64},
-#   dirichlet_tags=["mem_bnd"]) #diri
 V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64})
+  vector_type=Vector{ComplexF64},
+  dirichlet_tags=["mem_bnd"]) #diri
+# V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+#   vector_type=Vector{ComplexF64})
 U_Ω = TrialFESpace(V_Ω)
 U_Γκ = TrialFESpace(V_Γκ)
-# U_Γη = TrialFESpace(V_Γη, gη) #diri
-U_Γη = TrialFESpace(V_Γη)
+U_Γη = TrialFESpace(V_Γη, gη) #diri
+# U_Γη = TrialFESpace(V_Γη)
 
 
 # Weak form
 ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
 m11(η,v) = ∫( mᵨ*v*η )dΓm
-k11(η,v) = ∫( v*g*η + Tᵨ*∇(v)⋅∇(η) )dΓm #+  
-            #∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb #diri
+k11(η,v) = ∫( Tᵨ*∇(v)⋅∇(η) )dΓm +  
+            ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb #diri
 
-c12(ϕ,v) = ∫( v*ϕ )dΓm
-
-c21(η,w) = ∫( w*η )dΓm  
-
-k22(ϕ,w) = ∫( ∇(w)⋅∇(ϕ) )dΩ
-
-c23(κ,w) = ∫( im*ω*w*κ )dΓfs + 
-    ∫( im*ω*w*κ - μ₂ᵢₙ*κ*w )dΓd1 + 
-    ∫( im*ω*w*κ - μ₂ₒᵤₜ*κ*w )dΓd2
-
-c32(ϕ,u) = ∫( -im*ω*u*ϕ )dΓfs + 
-    ∫( -im*ω*u*ϕ + μ₁ᵢₙ*∇ₙ(ϕ)*u )dΓd1 +
-    ∫( -im*ω*u*ϕ + μ₁ₒᵤₜ*∇ₙ(ϕ)*u )dΓd2 
-
-k33(κ,u) = ∫( u*g*κ )dΓfs  +
-    ∫( u*g*κ )dΓd1  +
-    ∫( u*g*κ )dΓd2  
 
 l1(v) = ∫( 0*v )dΓm
-l2(w) = ∫( 0*w )dΩ
-l3(u) = ∫( 0*u )dΓfs + ∫( 0*u )dΓd1 + ∫( 0*u )dΓd2
 println("[MSG] Done Weak form")
 
 # Global matrices
 M11 = get_matrix(AffineFEOperator( m11, l1, U_Γη, V_Γη ))
 K11 = get_matrix(AffineFEOperator( k11, l1, U_Γη, V_Γη ))
-C12 = get_matrix(AffineFEOperator( c12, l1, U_Ω, V_Γη ))
-
-C21 = get_matrix(AffineFEOperator( c21, l2, U_Γη, V_Ω ))
-K22 = get_matrix(AffineFEOperator( k22, l2, U_Ω, V_Ω ))
-C23 = get_matrix(AffineFEOperator( c23, l2, U_Γκ, V_Ω ))
-
-C32 = get_matrix(AffineFEOperator( c32, l3, U_Ω, V_Γκ ))
-K33 = get_matrix(AffineFEOperator( k33, l3, U_Γκ, V_Γκ ))
 println("[MSG] Done Global matrices")
 
-# Solution
-tick()
-Mϕ = K22 - ( C23 * (Matrix(K33) \ C32) )
-Mhat = C12 * (Mϕ \ C21)
-Mtot = M11 + Mhat
-tock()
-
-λ = LinearAlgebra.eigvals(Mtot\Matrix(K11))
-V = LinearAlgebra.eigvecs(Mtot\Matrix(K11))
+λ = LinearAlgebra.eigvals(M11\Matrix(K11))
+V = LinearAlgebra.eigvecs(M11\Matrix(K11))
 @show sum(imag.(λ))
-ωₙ = sqrt.(real.(λ))
-@show ind = findall(ωₙ.<5)
-@show ωₙ[ind]
-xp = range(xm₀, xm₁, size(V,2))
+ωₙ = real.(λ)
+ωₙ = ifelse.(ωₙ .<0, 0, ωₙ)
+@show ωₙ = sqrt.(ωₙ)
+xp = range(xm₀, xm₁, size(V,2)+2)
 
 data = Dict(
   "xp" => xp,
-  "λ" => λ,
-  "V" => V,
-  "Mtot" => Mtot,
-  "K11" => K11
+  "ωₙ" => ωₙ,
+  "V" => V
 )
 
 wsave(filename*"_modesdata.jld2", data)

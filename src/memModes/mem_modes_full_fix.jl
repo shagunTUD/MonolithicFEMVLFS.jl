@@ -54,17 +54,6 @@ xm₁ = xm₀ + Lm
 println()
 
 
-# Numeric constants
-h = LΩ / nx
-γ = 1.0*order*(order-1)/h
-βₕ = 0.5
-αₕ = -im*ω/g * (1-βₕ)/βₕ
-@show h
-@show βₕ
-@show αₕ
-println()
-
-
 # Damping
 μ₀ = 2.5
 μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
@@ -257,9 +246,9 @@ tock()
 λ = LinearAlgebra.eigvals(Mtot\Matrix(K11))
 V = LinearAlgebra.eigvecs(Mtot\Matrix(K11))
 @show sum(imag.(λ))
-ω = sqrt.(real.(λ))
-@show ind = findall(ω.<5)
-@show ω[ind]
+ωₙ = sqrt.(real.(λ))
+@show ind = findall(ωₙ.<5)
+@show ωₙ[ind]
 xp = range(xm₀, xm₁, size(V,2)+2)
 
 data = Dict(
