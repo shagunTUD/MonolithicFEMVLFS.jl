@@ -66,7 +66,7 @@ function run_freq(ω, η₀, α)
 end
 
 
-name::String = "data/sims_202301/empt_freq_spec"
+name::String = "data/sims_202303/empt_freq_spec"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -82,8 +82,8 @@ H0 = 10 #m #still-water depth
 # η₀ = η₀[2:end]
 # ω = [2*π/2.53079486745378, 2*π/2.0]
 # η₀ = [0.25, 0.25]
-T = 2:0.5:5
-ω = 2*π./T
+ω = 1:0.2:3
+T = 2*π./ω
 η₀ = 0.25*ones(length(ω))
 α = randomPhase(ω; seed=100)
 
@@ -220,7 +220,7 @@ Y = MultiFieldFESpace([V_Ω,V_Γκ])
 
 
 # Probes
-prbx=range(-30, 90, 13)
+prbx=range(-80, 140, 23)
 @show prbxy = Point.(prbx, 0.0)
 
 lDa = zeros(ComplexF64, 1, length(prbxy))

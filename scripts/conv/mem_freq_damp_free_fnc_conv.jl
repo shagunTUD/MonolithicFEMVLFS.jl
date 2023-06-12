@@ -2,6 +2,7 @@ module BeamMultJoints_freq
 
 using Revise
 using Gridap
+using Gridap.Adaptivity
 using Plots
 using DrWatson
 using WaveSpec
@@ -35,6 +36,8 @@ function run_freq(ω, η₀, α)
   println()  
 
   # Damping
+  μ₀ = 2.5#maximum([2.5, 5.24/(ω^0.922)])#2.5
+  μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
   μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*k
   μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
   ηd(x) = μ₂ᵢₙ(x)*ηᵢₙ(x)
@@ -47,11 +50,12 @@ function run_freq(ω, η₀, α)
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
       - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
-    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫( -w * im * k * ϕ )dΓot +
+    # ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+    #   - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
-      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
-    ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
+      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
+    #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
 
   l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
 
@@ -60,31 +64,44 @@ function run_freq(ω, η₀, α)
   op = AffineFEOperator(a,l,X,Y)
   (ϕₕ,κₕ,ηₕ) = solve(op)
 
+  # Function for inlet phase
+  κin = interpolate_everywhere(ηᵢₙ, 
+    FESpace(Γκ, reffe, conformity=:H1, vector_type=Vector{ComplexF64}))
+  κr = κₕ - κin
+
+  # Energy flux (Power) calculation
+  ηx = ∇(ηₕ)⋅VectorValue(1.0,0.0)
+  Pd = sum(∫( abs(ηx)*abs(ηx) )dΓm)
+  Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
+
+  # Wave energy flux
+  ηrf = abs(κr(Point(prbPowx[1],0.0)))
+  ηtr = abs(κₕ(Point(prbPowx[2],0.0)))
+  kh = k*H0
+  wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
+  Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n
+  Prf = (0.5*ρw*g*ηrf*ηrf)*(ω/k)*wave_n
+  Ptr = (0.5*ρw*g*ηtr*ηtr)*(ω/k)*wave_n
+  PErr = Pin - Prf - Ptr - Pd
+  println("Power In \t ",Pin," W/m")
+  println("Power Ref \t ",Prf," W/m")
+  println("Power Trans \t ",Ptr," W/m")
+  println("Power Abs \t ",Pd," W/m")
+  println("Error \t ",PErr," W/m")
 
   # Interpolation on prboes
-  prb_κ = zeros(ComplexF64, 1, length(prbxy))
-  prb_κ_x = zeros(ComplexF64, 1, length(prbxy))  
   
+  push!( prbDaΓη, ηₕ(prxΓη) )
 
-  prb_κ[prbfs] = κₕ(prbxy[prbfs])
-  prb_κ[prbmem] = ηₕ(prbxy[prbmem])
-
-  prb_κ_x[prbfs] = (∇(κₕ)⋅VectorValue(1.0,0.0))(prbxy[prbfs])
-  prb_κ_x[prbmem] = (∇(ηₕ)⋅VectorValue(1.0,0.0))(prbxy[prbmem])
- 
-  push!(prbDa, prb_κ)  
-  push!(prbDa_x, prb_κ_x)  
-
-  push!(prbDaΓη, ηₕ(prxΓη))
-  push!(prbDaΓκ, κₕ(prxΓκ))
+  push!(prbPow, [Pin, Prf, Ptr, Pd, PErr, 0.0])
   
   tock()
   return 0
 end
 
 
-name::String = "data/sims_202302/mem_freq_damp_spec"
-order::Int = 2
+name::String = "data/sims_202305_conv3c/spec_free"
+order::Int = 1
 vtk_output::Bool = true
 filename = name*"/mem"
 
@@ -100,7 +117,7 @@ H0 = 10 #m #still-water depth
 # η₀ = η₀[2:end]
 # ω = [2*π/2.53079486745378, 2*π/2.0]
 # η₀ = [0.25, 0.25]
-ω = 0.7:0.05:3.5
+ω = 2.0:0.1:2.1
 T = 2*π./ω
 η₀ = 0.25*ones(length(ω))
 α = randomPhase(ω; seed=100)
@@ -123,17 +140,17 @@ println("Peak Wave T, L ", 2*pi/ωₚ, " ", 2*pi/kₚ)
 
 
 # Domain 
-nx = 4800
-ny = 20
-mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
-Ld = 15*H0 #damping zone length
-LΩ = 18*H0 + 2*Ld
+nx = 170
+ny = 4
+mesh_ry = 1.0 #Ratio for Geometric progression of eleSize
+Ld = 5*H0 #damping zone length
+LΩ = 12*H0 + Ld #2*Ld
 x₀ = -Ld
 domain =  (x₀, x₀+LΩ, -H0, 0.0)
 partition = (nx, ny)
 xdᵢₙ = 0.0
-xdₒₜ = x₀ + LΩ - Ld
-xm₀ = xdᵢₙ + 8*H0
+# xdₒₜ = x₀ + LΩ - Ld
+xm₀ = xdᵢₙ + 5*H0
 xm₁ = xm₀ + Lm
 @show Lm
 @show LΩ
@@ -158,9 +175,9 @@ println()
 
 
 # Damping
-μ₀ = 2.5
-μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
-μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
+# μ₀ = 2.5
+# μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
+# μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
 # μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*kₚ
 # μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*kₚ
 
@@ -182,7 +199,8 @@ function f_y(y, r, n, H0)
   end
 end
 map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0) )
-model = CartesianDiscreteModel(domain,partition,map=map)
+modelo = CartesianDiscreteModel(domain,partition,map=map)
+model = get_model( refine(modelo,(64,32)) )
 
 
 # Labelling
@@ -198,6 +216,7 @@ add_tag_from_tags!(labels_Ω, "water", [9])       # assign the label "water" to 
 Ω = Interior(model) #same as Triangulation()
 Γ = Boundary(model,tags="surface") #same as BoundaryTriangulation()
 Γin = Boundary(model,tags="inlet")
+Γot = Boundary(model,tags="outlet")
 
 
 # Auxiliar functions
@@ -211,22 +230,22 @@ function is_damping1(xs) # Check if an element is inside the damping zone 1
   x = (1/n)*sum(xs)
   (x₀ <= x[1] <= xdᵢₙ ) * ( x[2] ≈ 0.0)
 end
-function is_damping2(xs) # Check if an element is inside the damping zone 2
-  n = length(xs)
-  x = (1/n)*sum(xs)
-  (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
-end
+# function is_damping2(xs) # Check if an element is inside the damping zone 2
+#   n = length(xs)
+#   x = (1/n)*sum(xs)
+#   (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
+# end
 
 # Masking and Beam Triangulation
 xΓ = get_cell_coordinates(Γ)
 Γm_to_Γ_mask = lazy_map(is_mem, xΓ)
 Γd1_to_Γ_mask = lazy_map(is_damping1, xΓ)
-Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
+#Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
 Γm = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γd1 = Triangulation(Γ, findall(Γd1_to_Γ_mask))
-Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
+#Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
 Γfs = Triangulation(Γ, findall(!, Γm_to_Γ_mask .| 
-  Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
+  Γd1_to_Γ_mask ))# .| Γd2_to_Γ_mask))
 Γη = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γκ = Triangulation(Γ, findall(!,Γm_to_Γ_mask))
 
@@ -248,7 +267,7 @@ if vtk_output == true
   writevtk(Γ,filename*"_G")
   writevtk(Γm,filename*"_Gm")  
   writevtk(Γd1,filename*"_Gd1")
-  writevtk(Γd2,filename*"_Gd2")
+  # writevtk(Γd2,filename*"_Gd2")
   writevtk(Γfs,filename*"_Gfs")
   writevtk(Λmb,filename*"_Lmb")  
 end
@@ -259,9 +278,10 @@ degree = 2*order
 dΩ = Measure(Ω,degree)
 dΓm = Measure(Γm,degree)
 dΓd1 = Measure(Γd1,degree)
-dΓd2 = Measure(Γd2,degree)
+# dΓd2 = Measure(Γd2,degree)
 dΓfs = Measure(Γfs,degree)
 dΓin = Measure(Γin,degree)
+dΓot = Measure(Γot,degree)
 dΛmb = Measure(Λmb,degree)
 
 
@@ -278,126 +298,43 @@ V_Ω = TestFESpace(Ω, reffe, conformity=:H1,
   vector_type=Vector{ComplexF64})
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
   vector_type=Vector{ComplexF64})
-V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64},
-  dirichlet_tags=["mem_bnd"]) #diri
 # V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-#   vector_type=Vector{ComplexF64})
+#   vector_type=Vector{ComplexF64},
+#   dirichlet_tags=["mem_bnd"]) #diri
+V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+  vector_type=Vector{ComplexF64})
 U_Ω = TrialFESpace(V_Ω)
 U_Γκ = TrialFESpace(V_Γκ)
-U_Γη = TrialFESpace(V_Γη, gη)
-# U_Γη = TrialFESpace(V_Γη)
+# U_Γη = TrialFESpace(V_Γη, gη)
+U_Γη = TrialFESpace(V_Γη)
 X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
-# Probes
-prbx=[  -20.0, 0.0, 20.0, 40.0, 50.0, 
-        52.7, 53.7, 55, 60.0, 80.0, 
-        85.0, 90.0, 95.0, 100.0, 120.0, 
-        125.0, 140.0, 160.0, 180.0, 200.0]
-@show prbxy = Point.(prbx, 0.0)
-prbmem = (xm₀ .<= prbx .<= xm₁ )
-@show prbfs = findall(!,prbmem)
-@show prbmem = findall(prbmem)
-
-lDa = zeros(ComplexF64, 1, length(prbxy))
-prbDa = DataFrame(lDa, :auto) # for η
-prbDa_x = DataFrame(lDa, :auto) #for ηₓ
+#prbPowx=[ 55.0, 125.0 ]
+prbPowx=[ 25.0, 95.0 ]
 
 
 # Storing soln at Γ
-# Difficulties in doing it purely using get_cell_dof_valules()
-# instead going to do it using evaluate
-# maybe a bit slow, but shouldnt matter too much i guess.
-xΓη = get_cell_coordinates(Γη)
-xΓκ = get_cell_coordinates(Γκ)
-prxΓη = [val[1] for val in xΓη]
-tmp = [val[2] for val in xΓη]
-push!(prxΓη,tmp[end])
-prxΓκ = [val[1] for val in xΓκ]
-push!(prxΓκ,prxΓη[1])
-sort!(prxΓκ)
+prxΓη =  [ Point(i,0.0) for i in range(50.0, 70.0, 128*20+1) ]
 lDa = zeros(ComplexF64, 1, length(prxΓη))
 prbDaΓη = DataFrame(lDa, :auto)
-lDa = zeros(ComplexF64, 1, length(prxΓκ))
-prbDaΓκ = DataFrame(lDa, :auto)
+
+prbPow = DataFrame(zeros(Float64, 1, 6), :auto)
 
 # Run weak-form for each freq
 run_freq.(ω, η₀, α)
 
-@show prbDa = prbDa[2:end, :]
-prbDa_x = prbDa_x[2:end, :]
 prbDaΓη = prbDaΓη[2:end,:]
-prbDaΓκ = prbDaΓκ[2:end,:]
-
-# for lprb in 1:length(prbxy)
-#   plt1 = plot(ω, abs.(prbDa[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "A (m)",
-#     title = "Amplitude")  
-
-#   plt2 = plot(ω, abs.(prbDa_x[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "dA/dx",
-#     title = "Slope Magnitude")
-  
-#   plt3 = plot(ω, angle.(prbDa[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "α (rad)",
-#     title = "Phase")  
-
-#   plt4 = plot(ω, angle.(prbDa_x[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "α (rad)",
-#     title = "Slope Phase")
-  
-#   xloc = prbx[lprb]
-#   pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
-#     plot_title = "x = $xloc")
-
-#   savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
-# end
-
-for lprb in 1:length(prbxy)
-  plt1 = plot(k*H0, abs.(prbDa[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "A (m)",
-    title = "Amplitude")  
-
-  plt2 = plot(k*H0, abs.(prbDa_x[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "dA/dx",
-    title = "Slope Magnitude")
-  
-  plt3 = plot(k*H0, angle.(prbDa[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "α (rad)",
-    title = "Phase")  
-
-  plt4 = plot(k*H0, angle.(prbDa_x[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "α (rad)",
-    title = "Slope Phase")
-  
-  xloc = prbx[lprb]
-  pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
-    plot_title = "x = $xloc")
-
-  savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
-end
+prbPow = prbPow[2:end,:]
 
 k = dispersionRelAng.(H0, ω; msg=false)
 
 data = Dict("ω" => ω,
             "η₀" => η₀,
             "k" => k,
-            "prbxy" => prbxy,
-            "prbDa" => prbDa,            
-            "prbDa_x" => prbDa_x,
-            "prxΓκ" => prxΓκ,
             "prxΓη" => prxΓη,
-            "prbDaΓκ" => prbDaΓκ,
-            "prbDaΓη" => prbDaΓη)
+            "prbDaΓη" => prbDaΓη,
+            "prbPow" => prbPow)
 
 wsave(filename*"_data.jld2", data)
 

@@ -9,7 +9,7 @@ using .Constants
 using .WaveFreqDom
 
 
-name::String = "data/sims_202301/empt_freq"
+name::String = "data/sims_202303/run/empt_freq"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"

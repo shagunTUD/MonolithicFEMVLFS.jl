@@ -2,6 +2,7 @@ module BeamMultJoints_freq
 
 using Revise
 using Gridap
+using Gridap.Adaptivity
 using Plots
 using DrWatson
 using WaveSpec
@@ -89,21 +90,8 @@ function run_freq(ω, η₀, α)
   println("Error \t ",PErr," W/m")
 
   # Interpolation on prboes
-  prb_κ = zeros(ComplexF64, 1, length(prbxy))
-  prb_κ_x = zeros(ComplexF64, 1, length(prbxy))  
   
-
-  prb_κ[prbfs] = κₕ(prbxy[prbfs])
-  prb_κ[prbmem] = ηₕ(prbxy[prbmem])
-
-  prb_κ_x[prbfs] = (∇(κₕ)⋅VectorValue(1.0,0.0))(prbxy[prbfs])
-  prb_κ_x[prbmem] = (∇(ηₕ)⋅VectorValue(1.0,0.0))(prbxy[prbmem])
- 
-  push!(prbDa, prb_κ)  
-  push!(prbDa_x, prb_κ_x)  
-
-  push!(prbDaΓη, ηₕ(prxΓη))
-  push!(prbDaΓκ, κₕ(prxΓκ))
+  push!( prbDaΓη, ηₕ(prxΓη) )
 
   push!(prbPow, [Pin, Prf, Ptr, Pd, PErr, 0.0])
   
@@ -112,7 +100,7 @@ function run_freq(ω, η₀, α)
 end
 
 
-name::String = "data/sims_202303/run/spec_free"
+name::String = "data/sims_202305_conv3/spec_free"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -129,7 +117,7 @@ H0 = 10 #m #still-water depth
 # η₀ = η₀[2:end]
 # ω = [2*π/2.53079486745378, 2*π/2.0]
 # η₀ = [0.25, 0.25]
-ω = 0.7:0.05:3.5
+ω = 2.0:0.1:2.1
 T = 2*π./ω
 η₀ = 0.25*ones(length(ω))
 α = randomPhase(ω; seed=100)
@@ -152,17 +140,17 @@ println("Peak Wave T, L ", 2*pi/ωₚ, " ", 2*pi/kₚ)
 
 
 # Domain 
-nx = 3300
-ny = 20
-mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
-Ld = 15*H0 #damping zone length
-LΩ = 18*H0 + Ld #2*Ld
+nx = 170
+ny = 4
+mesh_ry = 1.0 #Ratio for Geometric progression of eleSize
+Ld = 5*H0 #damping zone length
+LΩ = 12*H0 + Ld #2*Ld
 x₀ = -Ld
 domain =  (x₀, x₀+LΩ, -H0, 0.0)
 partition = (nx, ny)
 xdᵢₙ = 0.0
 # xdₒₜ = x₀ + LΩ - Ld
-xm₀ = xdᵢₙ + 8*H0
+xm₀ = xdᵢₙ + 5*H0
 xm₁ = xm₀ + Lm
 @show Lm
 @show LΩ
@@ -211,7 +199,8 @@ function f_y(y, r, n, H0)
   end
 end
 map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0) )
-model = CartesianDiscreteModel(domain,partition,map=map)
+modelo = CartesianDiscreteModel(domain,partition,map=map)
+model = get_model( refine(modelo,32) )
 
 
 # Labelling
@@ -321,117 +310,28 @@ U_Γη = TrialFESpace(V_Γη)
 X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
-# Probes
-prbx=[  -20.0, 0.0, 20.0, 40.0, 50.0, 
-        52.7, 53.7, 55, 60.0, 80.0, 
-        85.0, 90.0, 95.0, 100.0, 120.0, 
-        125.0, 140.0, 160.0, 180.0 ]
-prbPowx=[ 55.0, 125.0 ]
-@show prbxy = Point.(prbx, 0.0)
-prbmem = (xm₀ .<= prbx .<= xm₁ )
-@show prbfs = findall(!,prbmem)
-@show prbmem = findall(prbmem)
-
-lDa = zeros(ComplexF64, 1, length(prbxy))
-prbDa = DataFrame(lDa, :auto) # for η
-prbDa_x = DataFrame(lDa, :auto) #for ηₓ
+prbPowx=[ 25.0, 95.0 ]
 
 
 # Storing soln at Γ
-# Difficulties in doing it purely using get_cell_dof_valules()
-# instead going to do it using evaluate
-# maybe a bit slow, but shouldnt matter too much i guess.
-xΓη = get_cell_coordinates(Γη)
-xΓκ = get_cell_coordinates(Γκ)
-prxΓη = [val[1] for val in xΓη]
-tmp = [val[2] for val in xΓη]
-push!(prxΓη,tmp[end])
-prxΓκ = [val[1] for val in xΓκ]
-push!(prxΓκ,prxΓη[1])
-sort!(prxΓκ)
+prxΓη =  [ Point(i,0.0) for i in range(50.0, 70.0, 128*20+1) ]
 lDa = zeros(ComplexF64, 1, length(prxΓη))
 prbDaΓη = DataFrame(lDa, :auto)
-lDa = zeros(ComplexF64, 1, length(prxΓκ))
-prbDaΓκ = DataFrame(lDa, :auto)
 
 prbPow = DataFrame(zeros(Float64, 1, 6), :auto)
 
 # Run weak-form for each freq
 run_freq.(ω, η₀, α)
 
-@show prbDa = prbDa[2:end, :]
-prbDa_x = prbDa_x[2:end, :]
 prbDaΓη = prbDaΓη[2:end,:]
-prbDaΓκ = prbDaΓκ[2:end,:]
 prbPow = prbPow[2:end,:]
-
-# for lprb in 1:length(prbxy)
-#   plt1 = plot(ω, abs.(prbDa[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "A (m)",
-#     title = "Amplitude")  
-
-#   plt2 = plot(ω, abs.(prbDa_x[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "dA/dx",
-#     title = "Slope Magnitude")
-  
-#   plt3 = plot(ω, angle.(prbDa[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "α (rad)",
-#     title = "Phase")  
-
-#   plt4 = plot(ω, angle.(prbDa_x[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "α (rad)",
-#     title = "Slope Phase")
-  
-#   xloc = prbx[lprb]
-#   pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
-#     plot_title = "x = $xloc")
-
-#   savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
-# end
-
-for lprb in 1:length(prbxy)
-  plt1 = plot(k*H0, abs.(prbDa[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "A (m)",
-    title = "Amplitude")  
-
-  plt2 = plot(k*H0, abs.(prbDa_x[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "dA/dx",
-    title = "Slope Magnitude")
-  
-  plt3 = plot(k*H0, angle.(prbDa[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "α (rad)",
-    title = "Phase")  
-
-  plt4 = plot(k*H0, angle.(prbDa_x[:,lprb]), linewidth=3, 
-    xlabel = "kh",
-    ylabel = "α (rad)",
-    title = "Slope Phase")
-  
-  xloc = prbx[lprb]
-  pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
-    plot_title = "x = $xloc")
-
-  savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
-end
 
 k = dispersionRelAng.(H0, ω; msg=false)
 
 data = Dict("ω" => ω,
             "η₀" => η₀,
             "k" => k,
-            "prbxy" => prbxy,
-            "prbDa" => prbDa,            
-            "prbDa_x" => prbDa_x,
-            "prxΓκ" => prxΓκ,
             "prxΓη" => prxΓη,
-            "prbDaΓκ" => prbDaΓκ,
             "prbDaΓη" => prbDaΓη,
             "prbPow" => prbPow)
 

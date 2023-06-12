@@ -8,7 +8,7 @@ using WaveSpec
 using .Constants
 
 
-name::String = "data/sims_202301/mem_freq_damp"
+name::String = "data/sims_202303/run/single"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -21,15 +21,15 @@ Lm = 2*H0 #m
 @show g #defined in .Constants
 mᵨ = 0.9 #mass per unit area of membrane / ρw
 Tᵨ = 0.1*g*H0*H0 #T/ρw
-@show τ = 0.5#damping coeff
-
+@show τ = 0.0#damping coeff
+diriFlag = false
 
 # Wave parameters
 # λ = 0.5*Lm #21 #13.95 #0.5*Lm #m #wave-length
 # k = 2π/λ
 # ω = sqrt(g*k*tanh(k*H0))
 # η₀ = ω/g #m #wave-amplitude
-ω = 1.8
+ω = 2.0#3.45#2.0#2.4
 η₀ = 0.25
 k = dispersionRelAng(H0, ω)
 λ = 2*π/k
@@ -204,31 +204,51 @@ V_Ω = TestFESpace(Ω, reffe, conformity=:H1,
   vector_type=Vector{ComplexF64})
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
   vector_type=Vector{ComplexF64})
-# V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-#   vector_type=Vector{ComplexF64},
-#   dirichlet_tags=["mem_bnd"])
-V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-  vector_type=Vector{ComplexF64})
+if(diriFlag)
+  V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+    vector_type=Vector{ComplexF64},
+    dirichlet_tags=["mem_bnd"]) #diri
+else
+  V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+    vector_type=Vector{ComplexF64})
+end
 U_Ω = TrialFESpace(V_Ω)
 U_Γκ = TrialFESpace(V_Γκ)
-# U_Γη = TrialFESpace(V_Γη, gη)
-U_Γη = TrialFESpace(V_Γη)
+if(diriFlag)
+  U_Γη = TrialFESpace(V_Γη, gη) #diri
+else
+  U_Γη = TrialFESpace(V_Γη)
+end
 X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
 
 # Weak form
 ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
-a((ϕ,κ,η),(w,u,v)) =      
-  ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
-  ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
-  ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-    - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
-  ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-    - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
-  ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
-    - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
-  ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
+if(diriFlag)
+  a((ϕ,κ,η),(w,u,v)) =      
+    ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
+      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
+    ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
+
+else
+  a((ϕ,κ,η),(w,u,v)) =      
+    ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
+      - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
+    #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
+end
 
 l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
 
@@ -236,6 +256,24 @@ l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓ
 # Solution
 op = AffineFEOperator(a,l,X,Y)
 (ϕₕ,κₕ,ηₕ) = solve(op)
+xΓκ = get_cell_coordinates(Γκ)
+
+# Generating input waves on FS
+xΓη = get_cell_coordinates(Γη)
+xΓκ = get_cell_coordinates(Γκ)
+prxΓη = [val[1] for val in xΓη]
+tmp = [val[2] for val in xΓη]
+push!(prxΓη,tmp[end])
+prxΓκ = [val[1] for val in xΓκ]
+push!(prxΓκ,prxΓη[1])
+sort!(prxΓκ)
+
+# Function for inlet phase
+ηa(x) = η₀*(cos(x[1]*k) + im*sin(x[1]*k))
+κin = interpolate_everywhere(ηa, 
+  FESpace(Γκ, reffe, conformity=:H1, vector_type=Vector{ComplexF64}))
+
+κr = κₕ - κin
 
 if vtk_output == true
   writevtk(Ω,filename * "_O_sol.vtu",
@@ -243,11 +281,35 @@ if vtk_output == true
     "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ)])
   writevtk(Γκ,filename * "_Gk_sol.vtu",
     cellfields = ["eta_re" => real(κₕ),"eta_im" => imag(κₕ),
-    "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ)])
+    "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ),
+    "etaR_re" => real(κr),"etaR_im" => imag(κr),
+    "etaR_abs" => abs(κr), "etaR_ang" => angle∘(κr),
+    "ηin_abs" => abs(κin), "ηin_ang" => angle∘(κin)])
   writevtk(Γη,filename * "_Ge_sol.vtu",
     cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
     "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])
 end
+
+# Energy flux (Power) calculation
+ηx = ∇(ηₕ)⋅VectorValue(1.0,0.0)
+Pd = sum(∫( abs(ηx)*abs(ηx) )dΓm)
+Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
+
+# Wave energy flux
+ηrf = abs(κr(Point(60.0,0.0)))
+ηtr = abs(κₕ(Point(120.0,0.0)))
+kh = k*H0
+wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
+Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n
+Prf = (0.5*ρw*g*ηrf*ηrf)*(ω/k)*wave_n
+Ptr = (0.5*ρw*g*ηtr*ηtr)*(ω/k)*wave_n
+
+println("Power In \t ",Pin," W/m")
+println("Power Ref \t ",Prf," W/m")
+println("Power Trans \t ",Ptr," W/m")
+println("Power Abs \t ",Pd," W/m")
+println("Error \t ",Pin - Prf - Ptr - Pd," W/m")
+
 
 data = Dict("ϕₕ" => ϕₕ,
             "κₕ" => κₕ,
