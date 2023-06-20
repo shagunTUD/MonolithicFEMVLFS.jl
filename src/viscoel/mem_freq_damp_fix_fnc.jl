@@ -35,10 +35,12 @@ function run_freq(ω, η₀, α)
   println()  
 
   # Damping
+  # Ldw = min( 5.0*λ, Ld )
   μ₀ = 2.5#maximum([2.5, 5.24/(ω^0.922)])#2.5
-  μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
+  μ₁ᵢₙ(x) =  μ₀*(1.0 - sin(π/2 * (x[1]-x₀)/Ld ))
+  # μ₁ᵢₙ(x) =  μ₀*(1.0 - sin(π/2 * min( (x[1]-x₀)/Ldw, 1.0 ) ))
   μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*k
-  μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
+  # μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
   ηd(x) = μ₂ᵢₙ(x)*ηᵢₙ(x)
   ∇ₙϕd(x) = μ₁ᵢₙ(x)*vzfsᵢₙ(x) #???
 
@@ -112,7 +114,7 @@ function run_freq(ω, η₀, α)
 end
 
 
-name::String = "data/sims_202303/run/spec_fix"
+name::String = "data/sims_202306/run/spec_fix"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -129,9 +131,9 @@ H0 = 10 #m #still-water depth
 # η₀ = η₀[2:end]
 # ω = [2*π/2.53079486745378, 2*π/2.0]
 # η₀ = [0.25, 0.25]
-ω = 0.7:0.05:3.5
+ω = 0.7:0.05:5
 T = 2*π./ω
-η₀ = 0.25*ones(length(ω))
+η₀ = 0.10*ones(length(ω))
 α = randomPhase(ω; seed=100)
 k = dispersionRelAng.(H0, ω; msg=false)
 
@@ -147,14 +149,14 @@ println("Peak Wave T, L ", 2*pi/ωₚ, " ", 2*pi/kₚ)
 @show Lm = 2*H0 #m
 @show g #defined in .Constants
 @show mᵨ = 0.9 #mass per unit area of membrane / ρw
-@show Tᵨ = 0.1*g*H0*H0 #T/ρw
+@show Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
 @show τ = 0.0#damping coeff
 
 
 # Domain 
-nx = 3300
+nx = 1650
 ny = 20
-mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
+mesh_ry = 1.2 #Ratio for Geometric progression of eleSize
 Ld = 15*H0 #damping zone length
 LΩ = 18*H0 + Ld #2*Ld
 x₀ = -Ld
@@ -186,23 +188,20 @@ h = LΩ / nx
 println()
 
 
-# Damping
-# μ₀ = 2.5
-# μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
-# μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
-# μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*kₚ
-# μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*kₚ
-
-
-
 # Mesh
-function f_y(y, r, n, H0)
+function f_y(y, r, n, H0; dbgmsg = false)
   # Mesh along depth as a GP
-  # Depth is 0 to -H0
+  # Depth is 0 to -H0    
   if(r ≈ 1.0)
     return y  
   else
     a0 = H0 * (r-1) / (r^n - 1)    
+    if(dbgmsg)
+      ln = 0:n
+      ly = -a0 / (r-1) * (r.^ln .- 1)         
+      @show hcat( ly, [ 0; ly[1:end-1] - ly[2:end] ] )
+    end
+    
     if y ≈ 0
       return 0.0
     end
@@ -210,7 +209,7 @@ function f_y(y, r, n, H0)
     return -a0 / (r-1) * (r^j - 1)
   end
 end
-map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0) )
+map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0; dbgmsg=false) )
 model = CartesianDiscreteModel(domain,partition,map=map)
 
 
@@ -365,33 +364,6 @@ prbDaΓη = prbDaΓη[2:end,:]
 prbDaΓκ = prbDaΓκ[2:end,:]
 prbPow = prbPow[2:end,:]
 
-# for lprb in 1:length(prbxy)
-#   plt1 = plot(ω, abs.(prbDa[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "A (m)",
-#     title = "Amplitude")  
-
-#   plt2 = plot(ω, abs.(prbDa_x[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "dA/dx",
-#     title = "Slope Magnitude")
-  
-#   plt3 = plot(ω, angle.(prbDa[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "α (rad)",
-#     title = "Phase")  
-
-#   plt4 = plot(ω, angle.(prbDa_x[:,lprb]), linewidth=3, 
-#     xlabel = "ω (rad/s)",
-#     ylabel = "α (rad)",
-#     title = "Slope Phase")
-  
-#   xloc = prbx[lprb]
-#   pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
-#     plot_title = "x = $xloc")
-
-#   savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
-# end
 
 for lprb in 1:length(prbxy)
   plt1 = plot(k*H0, abs.(prbDa[:,lprb]), linewidth=3, 

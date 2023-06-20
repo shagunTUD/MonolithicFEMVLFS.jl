@@ -39,8 +39,9 @@ function run_freq(ω, η₀, α)
   μ₀ = 2.5#maximum([2.5, 5.24/(ω^0.922)])#2.5
   μ₁ᵢₙ(x) =  μ₀*(1.0 - sin(π/2 * (x[1]-x₀)/Ld ))
   # μ₁ᵢₙ(x) =  μ₀*(1.0 - sin(π/2 * min( (x[1]-x₀)/Ldw, 1.0 ) ))
+  μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
   μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*k
-  # μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
+  μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
   ηd(x) = μ₂ᵢₙ(x)*ηᵢₙ(x)
   ∇ₙϕd(x) = μ₁ᵢₙ(x)*vzfsᵢₙ(x) #???
 
@@ -52,8 +53,8 @@ function run_freq(ω, η₀, α)
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
       - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
     ∫( -w * im * k * ϕ )dΓot +
-    # ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-    #   - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
       - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
     #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
@@ -84,7 +85,7 @@ function run_freq(ω, η₀, α)
   Prf = (0.5*ρw*g*ηrf*ηrf)*(ω/k)*wave_n
   Ptr = (0.5*ρw*g*ηtr*ηtr)*(ω/k)*wave_n
   PErr = Pin - Prf - Ptr - Pd
-  println("Power In \t ",Pin,"  W/m")
+  println("Power In \t ",Pin," W/m")
   println("Power Ref \t ",Prf," W/m")
   println("Power Trans \t ",Ptr," W/m")
   println("Power Abs \t ",Pd," W/m")
@@ -154,16 +155,16 @@ println("Peak Wave T, L ", 2*pi/ωₚ, " ", 2*pi/kₚ)
 
 
 # Domain 
-nx = 1650
-ny = 20
+nx = 2400
+ny = 10
 mesh_ry = 1.2 #Ratio for Geometric progression of eleSize
 Ld = 15*H0 #damping zone length
-LΩ = 18*H0 + Ld #2*Ld
+LΩ = 18*H0 + 2*Ld #2*Ld
 x₀ = -Ld
 domain =  (x₀, x₀+LΩ, -H0, 0.0)
 partition = (nx, ny)
 xdᵢₙ = 0.0
-# xdₒₜ = x₀ + LΩ - Ld
+xdₒₜ = x₀ + LΩ - Ld
 xm₀ = xdᵢₙ + 8*H0
 xm₁ = xm₀ + Lm
 @show Lm
@@ -190,19 +191,13 @@ println()
 
 
 # Mesh
-function f_y(y, r, n, H0; dbgmsg = false)
+function f_y(y, r, n, H0)
   # Mesh along depth as a GP
-  # Depth is 0 to -H0    
+  # Depth is 0 to -H0
   if(r ≈ 1.0)
     return y  
   else
     a0 = H0 * (r-1) / (r^n - 1)    
-    if(dbgmsg)
-      ln = 0:n
-      ly = -a0 / (r-1) * (r.^ln .- 1)         
-      @show hcat( ly, [ 0; ly[1:end-1] - ly[2:end] ] )
-    end
-    
     if y ≈ 0
       return 0.0
     end
@@ -210,7 +205,7 @@ function f_y(y, r, n, H0; dbgmsg = false)
     return -a0 / (r-1) * (r^j - 1)
   end
 end
-map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0; dbgmsg=false) )
+map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0) )
 model = CartesianDiscreteModel(domain,partition,map=map)
 
 
@@ -241,22 +236,22 @@ function is_damping1(xs) # Check if an element is inside the damping zone 1
   x = (1/n)*sum(xs)
   (x₀ <= x[1] <= xdᵢₙ ) * ( x[2] ≈ 0.0)
 end
-# function is_damping2(xs) # Check if an element is inside the damping zone 2
-#   n = length(xs)
-#   x = (1/n)*sum(xs)
-#   (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
-# end
+function is_damping2(xs) # Check if an element is inside the damping zone 2
+  n = length(xs)
+  x = (1/n)*sum(xs)
+  (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
+end
 
 # Masking and Beam Triangulation
 xΓ = get_cell_coordinates(Γ)
 Γm_to_Γ_mask = lazy_map(is_mem, xΓ)
 Γd1_to_Γ_mask = lazy_map(is_damping1, xΓ)
-#Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
+Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
 Γm = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γd1 = Triangulation(Γ, findall(Γd1_to_Γ_mask))
-#Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
+Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
 Γfs = Triangulation(Γ, findall(!, Γm_to_Γ_mask .| 
-  Γd1_to_Γ_mask ))# .| Γd2_to_Γ_mask))
+  Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
 Γη = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γκ = Triangulation(Γ, findall(!,Γm_to_Γ_mask))
 
@@ -278,7 +273,7 @@ if vtk_output == true
   writevtk(Γ,filename*"_G")
   writevtk(Γm,filename*"_Gm")  
   writevtk(Γd1,filename*"_Gd1")
-  # writevtk(Γd2,filename*"_Gd2")
+  writevtk(Γd2,filename*"_Gd2")
   writevtk(Γfs,filename*"_Gfs")
   writevtk(Λmb,filename*"_Lmb")  
 end
@@ -289,7 +284,7 @@ degree = 2*order
 dΩ = Measure(Ω,degree)
 dΓm = Measure(Γm,degree)
 dΓd1 = Measure(Γd1,degree)
-# dΓd2 = Measure(Γd2,degree)
+dΓd2 = Measure(Γd2,degree)
 dΓfs = Measure(Γfs,degree)
 dΓin = Measure(Γin,degree)
 dΓot = Measure(Γot,degree)
