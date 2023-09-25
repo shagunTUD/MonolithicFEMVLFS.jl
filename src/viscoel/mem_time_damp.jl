@@ -11,7 +11,7 @@ using .WaveTimeSeries
 using WriteVTK
 
 
-name::String = "data/sims_202301/mem_time_damp"
+name::String = "data/sims_202306/run/mono_time"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -20,17 +20,18 @@ filename = name*"/mem"
 H0 = 10 #m #still-water depth
 
 # Membrane parameters
-Lm = 2*H0 #m
+@show Lm = 2*H0 #m
 @show g #defined in .Constants
-mᵨ = 0.9 #mass per unit area of membrane / ρw
-Tᵨ = 0.1*g*H0*H0 #T/ρw
-@show τ = 0.5 #damping coeff
+@show mᵨ = 0.9 #mass per unit area of membrane / ρw
+@show Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
+@show τ = 0.25#damping coeff
+diriFlag = false
 
 # Wave parameters
-λ = 0.5*Lm #m #wave-length
-k = 2π/λ
-ω = sqrt(g*k*tanh(k*H0))
-η₀ = ω/g #m #wave-amplitude
+ω = 2.4#3.45#2.0#2.4
+η₀ = 0.10
+k = dispersionRelAng(H0, ω)
+λ = 2*π/k
 T = 2π/ω
 ph0 = π/2
 ηᵢₙ(x,t) = η₀*cos(k*x[1]-ω*t + ph0)
@@ -52,7 +53,7 @@ println()
 # Domain 
 nx = 1000
 ny = 20
-mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
+mesh_ry = 1.2 #Ratio for Geometric progression of eleSize
 Ld = Lm #damping zone length
 LΩ = 2*Ld + 3*Lm
 x₀ = -Ld
@@ -106,13 +107,19 @@ println()
 
 
 # Mesh
-function f_y(y, r, n, H0)
+function f_y(y, r, n, H0; dbgmsg = false)
   # Mesh along depth as a GP
-  # Depth is 0 to -H0
+  # Depth is 0 to -H0    
   if(r ≈ 1.0)
     return y  
   else
     a0 = H0 * (r-1) / (r^n - 1)    
+    if(dbgmsg)
+      ln = 0:n
+      ly = -a0 / (r-1) * (r.^ln .- 1)         
+      @show hcat( ly, [ 0; ly[1:end-1] - ly[2:end] ] )
+    end
+    
     if y ≈ 0
       return 0.0
     end
@@ -120,7 +127,7 @@ function f_y(y, r, n, H0)
     return -a0 / (r-1) * (r^j - 1)
   end
 end
-map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0) )
+map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0; dbgmsg=false) )
 model = CartesianDiscreteModel(domain,partition,map=map)
 
 
@@ -216,31 +223,57 @@ gη(t) = x -> gη(x,t)
 reffe = ReferenceFE(lagrangian,Float64,order)
 V_Ω = TestFESpace(Ω, reffe, conformity=:H1)
 V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1)
-V_Γη = TestFESpace(Γη, reffe, conformity=:H1,
-  dirichlet_tags=["mem_bnd"])
+if(diriFlag)
+  V_Γη = TestFESpace(Γη, reffe, conformity=:H1,
+    dirichlet_tags=["mem_bnd"])
+else
+  V_Γη = TestFESpace(Γη, reffe, conformity=:H1)
+end
 U_Ω = TransientTrialFESpace(V_Ω)
 U_Γκ = TransientTrialFESpace(V_Γκ)
-U_Γη = TransientTrialFESpace(V_Γη, gη)
+if(diriFlag)
+  U_Γη = TransientTrialFESpace(V_Γη, gη)
+else
+  U_Γη = TransientTrialFESpace(V_Γη)
+end
 X = TransientMultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
 
 # Weak form
 ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
-m((ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
-c((ϕₜ,κₜ,ηₜ),(w,u,v)) = 
-  ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
-  ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
-  ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
-  ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm +
-  ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
-a((ϕ,κ,η),(w,u,v)) =      
-  ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
-  ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
-  ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
-  ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2  +
-  ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm + 
-  ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
+if(diriFlag)
+  m((ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
+  c((ϕₜ,κₜ,ηₜ),(w,u,v)) = 
+    ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
+    ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
+    ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
+    ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm +
+    ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
+  a((ϕ,κ,η),(w,u,v)) =      
+    ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
+    ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
+    ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
+    ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2  +
+    ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm + 
+    ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
+
+else
+  m((ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
+  c((ϕₜ,κₜ,ηₜ),(w,u,v)) = 
+    ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
+    ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
+    ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
+    ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm #+
+    # ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
+  a((ϕ,κ,η),(w,u,v)) =      
+    ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
+    ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
+    ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
+    ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2  +
+    ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm #+ 
+    # ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
+end
 
 l(t,(w,u,v)) =  
   ∫( w*vᵢₙ(t) )dΓin - 

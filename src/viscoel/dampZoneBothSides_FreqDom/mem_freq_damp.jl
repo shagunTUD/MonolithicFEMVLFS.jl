@@ -8,7 +8,7 @@ using WaveSpec
 using .Constants
 
 
-name::String = "data/sims_202306/run/mono_freq_free"
+name::String = "data/sims_202303/run/single"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -17,16 +17,20 @@ filename = name*"/mem"
 H0 = 10 #m #still-water depth
 
 # Membrane parameters
-@show Lm = 2*H0 #m
+Lm = 2*H0 #m
 @show g #defined in .Constants
-@show mᵨ = 0.9 #mass per unit area of membrane / ρw
-@show Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
+mᵨ = 0.9 #mass per unit area of membrane / ρw
+Tᵨ = 0.1*g*H0*H0 #T/ρw
 @show τ = 0.0#damping coeff
 diriFlag = false
 
 # Wave parameters
-ω = 2.4#3.45#2.0#2.4
-η₀ = 0.10
+# λ = 0.5*Lm #21 #13.95 #0.5*Lm #m #wave-length
+# k = 2π/λ
+# ω = sqrt(g*k*tanh(k*H0))
+# η₀ = ω/g #m #wave-amplitude
+ω = 2.0#3.45#2.0#2.4
+η₀ = 0.25
 k = dispersionRelAng(H0, ω)
 λ = 2*π/k
 T = 2π/ω
@@ -43,16 +47,16 @@ println()
 
 
 # Domain 
-nx = 1650
+nx = 4800
 ny = 20
-mesh_ry = 1.2 #Ratio for Geometric progression of eleSize
+mesh_ry = 1.1 #Ratio for Geometric progression of eleSize
 Ld = 15*H0 #damping zone length
-LΩ = 18*H0 + Ld
+LΩ = 18*H0 + 2*Ld
 x₀ = -Ld
 domain =  (x₀, x₀+LΩ, -H0, 0.0)
 partition = (nx, ny)
 xdᵢₙ = 0.0
-# xdₒₜ = x₀ + LΩ - Ld
+xdₒₜ = x₀ + LΩ - Ld
 xm₀ = xdᵢₙ + 8*H0
 xm₁ = xm₀ + Lm
 @show Lm
@@ -80,28 +84,22 @@ println()
 # Damping
 μ₀ = 2.5
 μ₁ᵢₙ(x) = μ₀*(1.0 - sin(π/2*(x[1]-x₀)/Ld))
-# μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
+μ₁ₒᵤₜ(x) = μ₀*(1.0 - cos(π/2*(x[1]-xdₒₜ)/Ld))
 μ₂ᵢₙ(x) = μ₁ᵢₙ(x)*k
-# μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
+μ₂ₒᵤₜ(x) = μ₁ₒᵤₜ(x)*k
 ηd(x) = μ₂ᵢₙ(x)*ηᵢₙ(x)
 ∇ₙϕd(x) = μ₁ᵢₙ(x)*vzfsᵢₙ(x) #???
 
 
 
 # Mesh
-function f_y(y, r, n, H0; dbgmsg = false)
+function f_y(y, r, n, H0)
   # Mesh along depth as a GP
-  # Depth is 0 to -H0    
+  # Depth is 0 to -H0
   if(r ≈ 1.0)
     return y  
   else
     a0 = H0 * (r-1) / (r^n - 1)    
-    if(dbgmsg)
-      ln = 0:n
-      ly = -a0 / (r-1) * (r.^ln .- 1)         
-      @show hcat( ly, [ 0; ly[1:end-1] - ly[2:end] ] )
-    end
-    
     if y ≈ 0
       return 0.0
     end
@@ -109,7 +107,7 @@ function f_y(y, r, n, H0; dbgmsg = false)
     return -a0 / (r-1) * (r^j - 1)
   end
 end
-map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0; dbgmsg=false) )
+map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0) )
 model = CartesianDiscreteModel(domain,partition,map=map)
 
 
@@ -126,7 +124,7 @@ add_tag_from_tags!(labels_Ω, "water", [9])       # assign the label "water" to 
 Ω = Interior(model) #same as Triangulation()
 Γ = Boundary(model,tags="surface") #same as BoundaryTriangulation()
 Γin = Boundary(model,tags="inlet")
-Γot = Boundary(model,tags="outlet")
+
 
 # Auxiliar functions
 function is_mem(xs) # Check if an element is inside the beam1
@@ -139,22 +137,22 @@ function is_damping1(xs) # Check if an element is inside the damping zone 1
   x = (1/n)*sum(xs)
   (x₀ <= x[1] <= xdᵢₙ ) * ( x[2] ≈ 0.0)
 end
-# function is_damping2(xs) # Check if an element is inside the damping zone 2
-#   n = length(xs)
-#   x = (1/n)*sum(xs)
-#   (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
-# end
+function is_damping2(xs) # Check if an element is inside the damping zone 2
+  n = length(xs)
+  x = (1/n)*sum(xs)
+  (xdₒₜ <= x[1] ) * ( x[2] ≈ 0.0)
+end
 
 # Masking and Beam Triangulation
 xΓ = get_cell_coordinates(Γ)
 Γm_to_Γ_mask = lazy_map(is_mem, xΓ)
 Γd1_to_Γ_mask = lazy_map(is_damping1, xΓ)
-# Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
+Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
 Γm = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γd1 = Triangulation(Γ, findall(Γd1_to_Γ_mask))
-# Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
+Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
 Γfs = Triangulation(Γ, findall(!, Γm_to_Γ_mask .| 
-  Γd1_to_Γ_mask ))# .| Γd2_to_Γ_mask))
+  Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
 Γη = Triangulation(Γ, findall(Γm_to_Γ_mask))
 Γκ = Triangulation(Γ, findall(!,Γm_to_Γ_mask))
 
@@ -176,7 +174,7 @@ if vtk_output == true
   writevtk(Γ,filename*"_G")
   writevtk(Γm,filename*"_Gm")  
   writevtk(Γd1,filename*"_Gd1")
-  # writevtk(Γd2,filename*"_Gd2")
+  writevtk(Γd2,filename*"_Gd2")
   writevtk(Γfs,filename*"_Gfs")
   writevtk(Λmb,filename*"_Lmb")  
 end
@@ -187,10 +185,9 @@ degree = 2*order
 dΩ = Measure(Ω,degree)
 dΓm = Measure(Γm,degree)
 dΓd1 = Measure(Γd1,degree)
-# dΓd2 = Measure(Γd2,degree)
+dΓd2 = Measure(Γd2,degree)
 dΓfs = Measure(Γfs,degree)
 dΓin = Measure(Γin,degree)
-dΓot = Measure(Γot,degree)
 dΛmb = Measure(Λmb,degree)
 
 
@@ -234,9 +231,8 @@ if(diriFlag)
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
       - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
-    ∫( -w * im * k * ϕ )dΓot +
-    # ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-      # - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
       - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  + 
     ∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
@@ -247,9 +243,8 @@ else
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
       - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
-    ∫( -w * im * k * ϕ )dΓot +
-    # ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-    #   - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+    ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+      - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
       - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
     #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
@@ -318,9 +313,7 @@ println("Error \t ",Pin - Prf - Ptr - Pd," W/m")
 
 data = Dict("ϕₕ" => ϕₕ,
             "κₕ" => κₕ,
-            "ηₕ" => ηₕ,
-            "κr" => κr,
-            "κin" => κin)
+            "ηₕ" => ηₕ)
 
 wsave(filename*"_data.jld2", data)
 
