@@ -5,7 +5,7 @@ using .Constants
 @quickactivate "MonolithicFEMVLFS.jl"
 
 # Here you may include files from the source directory
-include(srcdir("viscoel3D","mem3D_freq_fnc_damp.jl"))
+include(srcdir("viscoel3D","mem3D_freq_para_damp.jl"))
 
 resDir::String = "data/sims_202309/run/mono3D_freq_free"
 
