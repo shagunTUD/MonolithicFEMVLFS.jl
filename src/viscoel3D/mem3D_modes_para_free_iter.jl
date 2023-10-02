@@ -248,7 +248,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
 
   #xp = range(xm₀, xm₁, size(V,2)+2)
 
-  @unpack nωₙ, errLim = params
+  @unpack nωₙ, errLim, maxIter = params
   da_ωₙ = zeros(Float64, 1, nωₙ)
   @show ωₙ=zeros(Float64, 1, nωₙ) .+ ω
   da_V = []
@@ -262,10 +262,11 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
   for i in 1:nωₙ
     # global da_ωₙ, da_V  
     # global ωₙ, ω
-    local V
+    local V, lIter
+    lIter = 0    
     Δω = 1
-    ω = ωₙ[i]
-    while Δω > errLim
+    ω = ωₙ[i]    
+    while ((Δω > errLim) && (lIter < maxIter))
       # global ω, ωₙ
       rλ, V = run_freq(ω)
       ωₒ = ω      
@@ -282,8 +283,9 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
         ω = 0.5 * ωᵣ + 0.5*ωₒ
         Δω = abs(ω - ωₒ)/ωₒ
       end      
-      # @show ωₙ
-      @show i, ω, Δω
+      # @show ωₙ      
+      lIter += 1
+      @show i, ω, Δω, lIter
     end
     da_ωₙ[i] = ω
     push!(da_V, V[:,i])
@@ -348,6 +350,7 @@ Parameters for the VIV.jl module.
 
   nωₙ = 2
   errLim = 1e-1
+  maxIter = 15
 
   # Domain 
   nx = 30
