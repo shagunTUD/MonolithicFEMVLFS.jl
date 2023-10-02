@@ -96,6 +96,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
 
 
   # Mesh
+  @unpack dbgmsg = params
   function f_z(z, r, n, H0; dbgmsg = false)
     # Mesh along depth as a GP
     # Depth is 0 to -H0    
@@ -117,7 +118,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
     end
   end
   map(x) = VectorValue( x[1], x[2], f_z(x[3], 
-    mesh_rz, nz, H0; dbgmsg=false) )
+    mesh_rz, nz, H0; dbgmsg=dbgmsg) )
   model = CartesianDiscreteModel(domain,partition,map=map)
 
 
@@ -351,6 +352,8 @@ Parameters for the VIV.jl module.
   nωₙ = 2
   errLim = 1e-1
   maxIter = 15
+
+  dbgmsg = false
 
   # Domain 
   nx = 30
