@@ -308,24 +308,24 @@ function main(params)
       "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])
   end
 
-  # # Energy flux (Power) calculation
-  # ηx = ∇(ηₕ)⋅VectorValue(1.0,0.0)
-  # Pd = sum(∫( abs(ηx)*abs(ηx) )dΓm)
-  # Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
+  # Energy flux (Power) calculation
+  ηxy = ∇(ηₕ)⋅VectorValue(1.0, 1.0, 0.0)
+  Pd = sum(∫( abs(ηxy)*abs(ηxy) )dΓm)
+  Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
 
-  # # Wave energy flux
+  # Wave energy flux
   # ηrf = abs(κr(Point(60.0,0.0)))
   # ηtr = abs(κₕ(Point(120.0,0.0)))
   # kh = k*H0
-  # wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
-  # Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n
+  wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
+  Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n*Wm
   # Prf = (0.5*ρw*g*ηrf*ηrf)*(ω/k)*wave_n
   # Ptr = (0.5*ρw*g*ηtr*ηtr)*(ω/k)*wave_n
 
-  # println("Power In \t ",Pin," W/m")
+  println("Power In \t ",Pin," W")
   # println("Power Ref \t ",Prf," W/m")
   # println("Power Trans \t ",Ptr," W/m")
-  # println("Power Abs \t ",Pd," W/m")
+  println("Power Abs \t ",Pd," W")
   # println("Error \t ",Pin - Prf - Ptr - Pd," W/m")
 
 
