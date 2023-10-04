@@ -316,7 +316,7 @@ function main(params)
   # Wave energy flux
   # ηrf = abs(κr(Point(60.0,0.0)))
   # ηtr = abs(κₕ(Point(120.0,0.0)))
-  # kh = k*H0
+  kh = k*H0
   wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
   Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n*Wm
   # Prf = (0.5*ρw*g*ηrf*ηrf)*(ω/k)*wave_n
