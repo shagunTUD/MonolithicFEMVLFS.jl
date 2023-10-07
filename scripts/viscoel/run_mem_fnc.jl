@@ -57,6 +57,13 @@ Memb2D.main(params)
   xm₀ = xdᵢₙ + 8*H0
   xm₁ = xm₀ + Lm
 
+  # Probes
+  prbx=[  -20.0, 0.0, 20.0, 40.0, 50.0, 
+          52.7, 53.7, 55, 60.0, 80.0, 
+          85.0, 90.0, 95.0, 100.0, 120.0, 
+          125.0, 140.0, 160.0, 180.0 ]
+  prbPowx=[ 55.0, 125.0 ]
+
 end
 params = run_params()
 Memb2D.main(params)
