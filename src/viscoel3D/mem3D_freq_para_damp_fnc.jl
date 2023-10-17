@@ -98,6 +98,10 @@ function main(params)
     cx = im*ω*κₕ * κₕᵢ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )
     cy = im*ω*κₕ * κₕⱼ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )
 
+    # Gradient of eta calculation
+    ηₕᵢ = ∇(ηₕ)⋅VectorValue(1.0, 0.0, 0.0)
+    ηₕⱼ = ∇(ηₕ)⋅VectorValue(0.0, 1.0, 0.0)    
+
     paraFolder = name*"/mem_omg_"*@sprintf("%.2f",ω)
     paraFile = paraFolder*"/mem"
 
@@ -120,7 +124,9 @@ function main(params)
         "cx_im" => imag(cx), "cy_im" => imag(cy)])
       writevtk(Γη,paraFile * "_Ge_sol.vtu",
         cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
-        "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])
+        "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ),
+        "eta_x_re" => real(ηₕᵢ), "eta_x_im" => imag(ηₕᵢ),
+        "eta_y_re" => real(ηₕⱼ), "eta_y_im" => imag(ηₕⱼ)])
     end    
 
     tock()
