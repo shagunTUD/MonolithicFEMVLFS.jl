@@ -49,7 +49,7 @@ Memb3D.main(params)
   partition = (nx, ny, nz)
   xdᵢₙ = 0.0
   xdₒₜ = x₀ + LΩ - Ld
-  xm₀ = xdᵢₙ + 1.5*Lm
+  xm₀ = xdᵢₙ + 2*Lm
   xm₁ = xm₀ + Lm
   ym₀ = -Wm/2
   ym₁ = Wm/2
