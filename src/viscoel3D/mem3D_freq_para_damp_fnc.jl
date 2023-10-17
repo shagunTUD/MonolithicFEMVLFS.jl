@@ -9,6 +9,7 @@ using WaveSpec
 using .Constants
 using TickTock
 using DataFrames
+using Printf
 
 
 function main(params)
@@ -77,12 +78,51 @@ function main(params)
     # Wave energy flux
     kh = k*H0
     wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
-    Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n*Wm
+    Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n*Wm    
 
     push!(prbPow, [ω, Pin, Pd])
 
     println("Power In \t ",Pin," W")    
     println("Power Abs \t ",Pd," W")
+
+    # Function for inlet phase
+    ηa(x) = η₀*(cos(x[1]*k) + im*sin(x[1]*k))
+    κin = interpolate_everywhere(ηa, 
+      FESpace(Γκ, reffe, conformity=:H1, vector_type=Vector{ComplexF64}))
+
+    κr = κₕ - κin
+
+    # Wave direction
+    κₕᵢ = ∇(κₕ)⋅VectorValue(1.0, 0.0, 0.0)
+    κₕⱼ = ∇(κₕ)⋅VectorValue(0.0, 1.0, 0.0)
+    cx = im*ω*κₕ * κₕᵢ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )
+    cy = im*ω*κₕ * κₕⱼ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )
+
+    paraFolder = name*"/mem_omg_"*@sprintf("%.2f",ω)
+    paraFile = paraFolder*"/mem"
+
+    if vtk_output == true
+      if( isdir(paraFolder) )
+        rm(paraFolder; recursive=true)
+      end
+      mkdir(paraFolder)
+
+      writevtk(Ω,paraFile * "_O_sol.vtu",
+        cellfields = ["phi_re" => real(ϕₕ),"phi_im" => imag(ϕₕ),
+        "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ)])
+      writevtk(Γκ,paraFile * "_Gk_sol.vtu",
+        cellfields = ["eta_re" => real(κₕ),"eta_im" => imag(κₕ),
+        "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ),
+        "etaR_re" => real(κr),"etaR_im" => imag(κr),
+        "etaR_abs" => abs(κr), "etaR_ang" => angle∘(κr),
+        "ηin_abs" => abs(κin), "ηin_ang" => angle∘(κin),
+        "cx" => real(cx), "cy" => real(cy),
+        "cx_im" => imag(cx), "cy_im" => imag(cy)])
+      writevtk(Γη,paraFile * "_Ge_sol.vtu",
+        cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
+        "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])
+    end    
+
     tock()
     return 0
   end

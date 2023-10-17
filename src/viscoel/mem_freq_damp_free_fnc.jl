@@ -5,8 +5,8 @@ using Gridap
 using Plots
 using DrWatson
 using WaveSpec
-using .Constants
-using .Jonswap
+using WaveSpec.Constants
+using WaveSpec.Jonswap
 using DataFrames:DataFrame
 using DataFrames:Matrix
 using TickTock
