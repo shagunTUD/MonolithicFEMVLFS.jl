@@ -278,7 +278,7 @@ function main(params)
   Y = MultiFieldFESpace([V_Ω,V_Γκ])  
 
   # Power probes
-  prbPow = DataFrame(zeros(ComplexF64, 1, 4), :auto)
+  prbPow = DataFrame(zeros(ComplexF64, 1, 6), :auto)
 
   # Run weak-form for each freq
   run_freq.(ω, η₀)
