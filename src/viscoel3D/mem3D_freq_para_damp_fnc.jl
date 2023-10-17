@@ -124,6 +124,8 @@ function main(params)
     end    
 
     tock()
+    println("----------")
+    println()
     return 0
   end
 
