@@ -75,14 +75,20 @@ function main(params)
     Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n*Wm
 
     # Wave energy flux measured
-    κm = κₕ(Point(xm₀, 0.0, 0.0))
-    Pinm = (0.5*ρw*g*conj(κm)*κm)*(ω/k)*wave_n*Wm
+    κm0 = κₕ(Point(xm₀, 0.0, 0.0))
+    Pinm0 = (0.5*ρw*g*conj(κm0)*κm0)*(ω/k)*wave_n*Wm
 
-    push!(prbPow, [ω, Pin, Pinm, κm])
+    # Wave energy flux measured
+    κm1 = κₕ(Point(xm₁, 0.0, 0.0))
+    Pinm1 = (0.5*ρw*g*conj(κm1)*κm1)*(ω/k)*wave_n*Wm
+
+    push!(prbPow, [ω, Pin, Pinm0, Pinm1, κm0, κm1])
 
     println("Power In \t ",Pin," W")    
-    println("Power In Measured \t ",Pinm," W")
-    println("κ In Measured \t ",abs(κm)," W")
+    println("Power In Measured at xm0 \t ",Pinm0," W")
+    println("κ In Measured at xm0 \t ",abs(κm0)," W")
+    println("Power In Measured at xm1 \t ",Pinm1," W")
+    println("κ In Measured at xm1 \t ",abs(κm1)," W")
     tock()
     println("----------")
     println()
