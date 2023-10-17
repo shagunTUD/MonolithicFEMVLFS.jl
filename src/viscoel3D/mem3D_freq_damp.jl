@@ -313,7 +313,8 @@ if vtk_output == true
     "etaR_re" => real(κr),"etaR_im" => imag(κr),
     "etaR_abs" => abs(κr), "etaR_ang" => angle∘(κr),
     "ηin_abs" => abs(κin), "ηin_ang" => angle∘(κin),
-    "cx" => real(cx), "cy" => real(cy)])
+    "cx" => real(cx), "cy" => real(cy),
+    "cx_im" => imag(cx), "cy_im" => imag(cy)])
   writevtk(Γη,filename * "_Ge_sol.vtu",
     cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
     "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])

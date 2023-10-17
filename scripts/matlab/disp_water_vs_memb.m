@@ -45,6 +45,18 @@ set(gca,'GridAlpha',1,'GridLineStyle','--')
 xline(2*pi/0.7,'HandleVisibility','off')
 
 
+figure(3)
+hold on
+plot(w, w./kw, 'k', 'LineWidth', 3)
+plot(w, w./km, 'r', 'LineWidth', 3)
+grid on
+xlabel('w (rad/s)')
+ylabel('c (m/s)')
+legend('Water','Membrane')
+set(gca,'GridAlpha',1,'GridLineStyle','--')
+xline(0.7,'HandleVisibility','off')
+
+
 %% Functions
 function k = disp_water(w, h)
     g=9.81;
