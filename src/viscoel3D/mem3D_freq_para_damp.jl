@@ -309,8 +309,10 @@ function main(params)
   end
 
   # Energy flux (Power) calculation
-  ηxy = ∇(ηₕ) .* VectorValue(1.0, 1.0, 0.0)
-  Pd = sum(∫( conj(ηxy) ⋅ ηxy )dΓm)
+  ηxyz = ∇(ηₕ) 
+  ηx = ηxyz ⋅ VectorValue(1.0, 0.0, 0.0)
+  ηy = ηxyz ⋅ VectorValue(0.0, 1.0, 0.0)
+  Pd = sum(∫( abs(ηx)*abs(ηx) + abs(ηy)*abs(ηy) )dΓm)
   Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
 
   # Wave energy flux
