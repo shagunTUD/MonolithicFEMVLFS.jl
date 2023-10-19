@@ -292,6 +292,7 @@ function main(params)
               "prbPow" => prbPow)
 
   wsave(filename*"_data.jld2", data)
+  return prbPow
 end
 
 
