@@ -18,7 +18,7 @@ function run_case(mfac = 0.9, tfac = 0.1)
   
   caseName = "ten" * @sprintf("%0.2f", tfac) *"_mass" * @sprintf("%0.2f", mfac)
   # name::String = "data/sims_202305/mem_modes_res_free/dry/mem_modes_"*caseName
-  name::String = "data/sims_202305/mem_modes_free/dry/mem_modes_"*caseName
+  name::String = "data/sims_202310/mem_modes_free/dry/mem_modes_"*caseName
   order::Int = 2
   vtk_output::Bool = true
   filename = name*"/mem"
@@ -120,9 +120,15 @@ function run_case(mfac = 0.9, tfac = 0.1)
 
   #xp = range(xm₀, xm₁, size(V,2)+2)
 
-  λ = LinearAlgebra.eigvals(M11\Matrix(K11))
-  V = LinearAlgebra.eigvecs(M11\Matrix(K11))
-  @show sum(imag.(λ))
+  # λ = LinearAlgebra.eigvals(M11\Matrix(K11))
+  # V = LinearAlgebra.eigvecs(M11\Matrix(K11))
+  # @show λ
+
+  Ur,S,Vr = svd(M11\Matrix(K11))
+  # @show S
+  λ = reverse(S)
+  V = reverse(Vr, dims=2)
+
   ωₙ = real.(λ)
   ωₙ = ifelse.(ωₙ .<0, 0, ωₙ)
   @show ωₙ = sqrt.(ωₙ)
@@ -145,8 +151,8 @@ end
 # mfac = [0.1:0.1:1;]
 # tfac = [0.05:0.05:1.0;]
 
-mfac = [0.5]
-tfac = [0.5]
+mfac = [0.9]
+tfac = [0.1]
 
 
 for imfac in mfac
