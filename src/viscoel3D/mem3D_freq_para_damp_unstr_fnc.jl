@@ -10,6 +10,7 @@ using .Constants
 using TickTock
 using DataFrames
 using Printf
+using GridapGmsh
 
 
 function main(params)
@@ -22,10 +23,12 @@ function main(params)
     k = dispersionRelAng(H0, ω; msg = false)
     λ = 2*π/k
     T = 2π/ω
-    ηᵢₙ(x) = η₀*exp(im*k*x[1])
-    ϕᵢₙ(x) = -im*(η₀*ω/k)*(cosh(k*(H0 + x[3])) / sinh(k*H0))*exp(im*k*x[1])
-    vxᵢₙ(x) = (η₀*ω)*(cosh(k*(H0 + x[3])) / sinh(k*H0))*exp(im*k*x[1])
-    vzfsᵢₙ(x) = -im*ω*η₀*exp(im*k*x[1]) #???
+    ηᵢₙ(x) = η₀*exp(im*k*(x[1]-x₀))
+    ϕᵢₙ(x) = -im*(η₀*ω/k)*(cosh(k*x[3]) / 
+      sinh(k*H0))*exp(im*k*(x[1]-x₀))
+    vxᵢₙ(x) = (η₀*ω)*(cosh(k*x[3]) / 
+      sinh(k*H0))*exp(im*k*(x[1]-x₀))
+    vzfsᵢₙ(x) = -im*ω*η₀*exp(im*k*(x[1]-x₀)) #???
     @show ω, T
     @show λ
     @show η₀
@@ -68,7 +71,8 @@ function main(params)
     # Solution
     op = AffineFEOperator(a,l,X,Y)
     (ϕₕ,κₕ,ηₕ) = solve(op)
-    xΓκ = get_cell_coordinates(Γκ)  
+    
+    # xΓκ = get_cell_coordinates(Γκ)  
       
     # Energy flux (Power) calculation
     ηxyz = ∇(ηₕ) 
@@ -80,7 +84,7 @@ function main(params)
     # Wave energy flux
     kh = k*H0
     wave_n = 0.5*(1 + 2*kh/sinh(2*kh))
-    Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n*Wm    
+    Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n * Pin_Wm    
 
     push!(prbPow, [ω, Pin, Pd])
 
@@ -88,9 +92,9 @@ function main(params)
     println("Power Abs \t ",Pd," W")
 
     # Function for inlet phase
-    ηa(x) = η₀*(cos(x[1]*k) + im*sin(x[1]*k))
-    κin = interpolate_everywhere(ηa, 
-      FESpace(Γκ, reffe, conformity=:H1, vector_type=Vector{ComplexF64}))
+    κin = interpolate_everywhere(ηᵢₙ, 
+      FESpace(Γκ, reffe, conformity=:H1, 
+        vector_type=Vector{ComplexF64}))
 
     κr = κₕ - κin
 
@@ -98,12 +102,19 @@ function main(params)
     κₕᵢ = ∇(κₕ)⋅VectorValue(1.0, 0.0, 0.0)
     κₕⱼ = ∇(κₕ)⋅VectorValue(0.0, 1.0, 0.0)
     cx = im*ω*κₕ * κₕᵢ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )
-    cy = im*ω*κₕ * κₕⱼ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )
+    cy = im*ω*κₕ * κₕⱼ / ( (κₕᵢ*κₕᵢ) + (κₕⱼ*κₕⱼ) )  
+    
+    
+    # Pressure calculation
+    Pres_d = ρw * im * ω * ϕₕ
+    FCyl = sum(∫( Pres_d * nΓCyl )dΓcyl)
+    @show FCyl
+    push!(prbForce, [ω, FCyl[1], FCyl[2], FCyl[3]])
 
-    # Gradient of eta calculation
-    ηₕᵢ = ∇(ηₕ)⋅VectorValue(1.0, 0.0, 0.0)
-    ηₕⱼ = ∇(ηₕ)⋅VectorValue(0.0, 1.0, 0.0)    
-
+    @printf( dataFile, "%15.6f, %15.6f, %15.6f, %15.6f, %15.6f, %15.6f \n", 
+      ω, Pin, Pd, abs(FCyl[1]), abs(FCyl[2]), abs(FCyl[3]))    
+    flush(dataFile)
+    
     paraFolder = name*"/mem_omg_"*@sprintf("%.2f",ω)
     paraFile = paraFolder*"/mem"
 
@@ -127,8 +138,8 @@ function main(params)
       writevtk(Γη,paraFile * "_Ge_sol.vtu",
         cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
         "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ),
-        "eta_x_re" => real(ηₕᵢ), "eta_x_im" => imag(ηₕᵢ),
-        "eta_y_re" => real(ηₕⱼ), "eta_y_im" => imag(ηₕⱼ)])
+        "eta_x_re" => real(ηx), "eta_x_im" => imag(ηx),
+        "eta_y_re" => real(ηy), "eta_y_im" => imag(ηy)])
     end    
 
     tock()
@@ -145,13 +156,13 @@ function main(params)
   @show H0
 
   # Membrane parameters
-  @unpack Lm, Wm, mᵨ, Tᵨ, τ = params
-  @show Lm  #m
-  @show Wm  #m
+  @unpack mᵨ, Tᵨ, τ, Pin_Wm = params
   @show g   #defined in .Constants
   @show mᵨ  #mass per unit area of membrane / ρw
   @show Tᵨ  #T/ρw
   @show τ   #damping coeff
+  @show Pin_Wm 
+  # Projected Width of membrane for calculation of input power
 
   # Wave parameters
   @unpack ω, η₀ = params
@@ -162,106 +173,55 @@ function main(params)
 
 
   # Domain 
-  @unpack nx, ny, nz, mesh_rz, Ld, LΩ, WΩ, x₀ = params
-  @unpack domain, partition, xdᵢₙ, xdₒₜ, xm₀, xm₁, ym₀, ym₁ = params
-  @show Lm
-  @show LΩ
-  @show domain
-  @show partition
-  @show (xm₀, xm₁) (ym₀, ym₁)
-  @show isinteger(Lm/LΩ*nx)
-  @show LΩ/nx
-  @show H0/nz
+  @unpack mesh_file = params
+  @unpack Ld, LΩ, WΩ, x₀ = params
+  @unpack xdᵢₙ, xdₒₜ = params
+  @show mesh_file  
+  @show LΩ, WΩ
   println()
 
-
   # Numeric constants
-  h = LΩ / nx
-  γ = 1.0*order*(order-1)/h
+  # h = LΩ / nx
+  # γ = 1.0*order*(order-1)/h
   βₕ = 0.5
-  @show h
+  # @show h
   @show βₕ  
   println()
 
+  model = DiscreteModelFromFile(mesh_file)  
 
-  # Mesh
-  function f_z(z, r, n, H0; dbgmsg = false)
-    # Mesh along depth as a GP
-    # Depth is 0 to -H0    
-    if(r ≈ 1.0)
-      return z 
-    else
-      a0 = H0 * (r-1) / (r^n - 1)    
-      if(dbgmsg)
-        ln = 0:n
-        lz = -a0 / (r-1) * (r.^ln .- 1)         
-        @show hcat( lz, [ 0; lz[1:end-1] - lz[2:end] ] )
-      end
-      
-      if z ≈ 0
-        return 0.0
-      end
-      j = abs(z) / H0 * n  
-      return -a0 / (r-1) * (r^j - 1)
-    end
-  end
-  map(x) = VectorValue( x[1], x[2], f_z(x[3], 
-    mesh_rz, nz, H0; dbgmsg=false) )
-  model = CartesianDiscreteModel(domain,partition,map=map)
+  println("Num of nodes = ",length(model.grid.node_coordinates))
 
-  println("Num of nodes = ",length(model.grid.node_coords))
-
-
-  # Labelling
-  labels_Ω = get_face_labeling(model)
-  add_tag_from_tags!(labels_Ω,"surface",
-    [5,6,7,8,11,12,15,16,22])   
-  add_tag_from_tags!(labels_Ω,"bottom",
-    [1,2,3,4,9,10,13,14,21])
-  add_tag_from_tags!(labels_Ω,"inlet",
-    [17,19,25]) 
-  add_tag_from_tags!(labels_Ω,"outlet",
-    [18,20,26])   
-  add_tag_from_tags!(labels_Ω,"swNear",
-    [23])   
-  add_tag_from_tags!(labels_Ω,"swFar",
-    [24])   
-
-  # Triangulations
+  # # Triangulations
   Ω = Interior(model) #same as Triangulation()
-  Γ = Boundary(model,tags="surface") #same as BoundaryTriangulation()
-  Γin = Boundary(model,tags="inlet")
-  Γot = Boundary(model,tags="outlet")
+  Γ = Boundary(model, tags=["FreeSurface","Membrane"]) #same as BoundaryTriangulation()
+  Γin = Boundary(model, tags="Inlet")
+  Γot = Boundary(model, tags="Outlet")
+  Γcyl = Boundary(model, tags="Cylinder")
+
 
   # Auxiliar functions
-  function is_mem(xs) # Check if an element is inside the beam1
-    n = length(xs)
-    x = (1/n)*sum(xs)
-    (xm₀ <= x[1] <= xm₁ ) * (ym₀ <= x[2] <= ym₁) * ( x[3] ≈ 0.0)
-  end
   function is_damping1(xs) # Check if an element is inside the damping zone 1
     n = length(xs)
     x = (1/n)*sum(xs)
-    (x₀ <= x[1] <= xdᵢₙ ) * ( x[3] ≈ 0.0)
+    (x₀ <= x[1] <= xdᵢₙ ) * ( x[3] ≈ H0)
   end
   function is_damping2(xs) # Check if an element is inside the damping zone 2
     n = length(xs)
     x = (1/n)*sum(xs)
-    (xdₒₜ <= x[1] ) * ( x[3] ≈ 0.0)
+    (xdₒₜ <= x[1] ) * ( x[3] ≈ H0)
   end
 
   # Masking and Beam Triangulation
-  xΓ = get_cell_coordinates(Γ)
-  Γm_to_Γ_mask = lazy_map(is_mem, xΓ)
-  Γd1_to_Γ_mask = lazy_map(is_damping1, xΓ)
-  Γd2_to_Γ_mask = lazy_map(is_damping2, xΓ)
-  Γm = Triangulation(Γ, findall(Γm_to_Γ_mask))
-  Γd1 = Triangulation(Γ, findall(Γd1_to_Γ_mask))
-  Γd2 = Triangulation(Γ, findall(Γd2_to_Γ_mask))
-  Γfs = Triangulation(Γ, findall(!, Γm_to_Γ_mask .| 
-    Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
-  Γη = Triangulation(Γ, findall(Γm_to_Γ_mask))
-  Γκ = Triangulation(Γ, findall(!,Γm_to_Γ_mask))
+  Γκ = Boundary(model, tags = "FreeSurface")
+  xΓκ = get_cell_coordinates(Γκ)
+  Γd1_to_Γ_mask = lazy_map(is_damping1, xΓκ)
+  Γd2_to_Γ_mask = lazy_map(is_damping2, xΓκ)
+  Γd1 = Triangulation(Γκ, findall(Γd1_to_Γ_mask))
+  Γd2 = Triangulation(Γκ, findall(Γd2_to_Γ_mask))  
+  Γm = Boundary(model, tags = "Membrane")
+  Γη = Γm  
+  Γfs = Triangulation(Γκ, findall(!, Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
 
 
   # # Construct the tag for membrane boundary
@@ -283,6 +243,7 @@ function main(params)
     writevtk(Γd1,filename*"_Gd1")
     writevtk(Γd2,filename*"_Gd2")
     writevtk(Γfs,filename*"_Gfs")
+    writevtk(Γcyl,filename*"_Gcyl")
     # writevtk(Λmb,filename*"_Lmb")  
   end
 
@@ -296,11 +257,14 @@ function main(params)
   dΓfs = Measure(Γfs,degree)
   dΓin = Measure(Γin,degree)
   dΓot = Measure(Γot,degree)
+  dΓcyl = Measure(Γcyl,degree)
   # dΛmb = Measure(Λmb,degree)
 
 
   # # Normals
   # @show nΛmb = get_normal_vector(Λmb)
+  nΓCyl = get_normal_vector(Γcyl)
+  @show nΓCyl
 
 
   # Dirichlet Fnc
@@ -322,20 +286,26 @@ function main(params)
 
   # Power probes
   prbPow = DataFrame(zeros(Float64, 1, 3), :auto)
+  prbForce = DataFrame(zeros(ComplexF64, 1, 4), :auto)
+  dataFile = open(filename*"_printed_data.txt", "w")
 
   # Run weak-form for each freq
   run_freq.(ω, η₀)
 
   prbPow = prbPow[2:end,:]
+  prbForce = prbForce[2:end,:]
 
   k = dispersionRelAng.(H0, ω; msg=false)
-  data = Dict("ω" => ω,
-              "η₀" => η₀,
-              "k" => k,
-              "prbPow" => prbPow)
+  data = Dict(
+    "ω" => ω,
+    "η₀" => η₀,
+    "k" => k,
+    "prbPow" => prbPow,
+    "prbForce" => prbForce)
 
   wsave(filename*"_data.jld2", data)
-  return prbPow
+  close(dataFile)
+  return (prbPow, prbForce)
 end
 
 
@@ -345,6 +315,8 @@ Memb_params
 Parameters for the VIV.jl module.
 """
 @with_kw struct Memb_params
+
+  mesh_file::String = "data/sims_202311/northHoyle/mesh/mesh0/meshWorks.msh"
   name::String = "data/sims_202309/run/mono3D_freq_free"
   order::Int = 2
   vtk_output::Bool = true
@@ -352,37 +324,24 @@ Parameters for the VIV.jl module.
   H0 = 10 #m #still-water depth
 
   # Membrane parameters
-  Lm = 2*H0 #m
-  Wm = Lm  
-  mᵨ = 0.9 #mass per unit area of membrane / ρw
-  Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
+  mᵨ = 0.005 #970.0*0.005/1025 #mass per unit area of membrane / ρw
+  Tᵨ = 48.78 #1e7 stress x 0.005 thick #T/ρw
   τ = 0.0#damping coeff
+  Pin_Wm = 12.0 # Projected Width of membrane for calculation of input power
 
   # Wave parameters
-  ω = 1:1:2
+  ω = 2:1:3
   T = 2*π./ω
   η₀ = 0.10*ones(length(ω))
   # α = randomPhase(ω; seed=100)
 
   # Domain 
-  nx = 50
-  ny = 4
-  nz = 3
-  mesh_rz = 1.2 #Ratio for Geometric progression of eleSize
-  # Ld = 9*H0 #damping zone length
-  # LΩ = 5*Lm + 2*Ld
-  Ld = 6*H0 #damping zone length
-  LΩ = 4*Lm + 2*Ld
-  WΩ = 4*H0
-  x₀ = -Ld
-  domain =  (x₀, x₀+LΩ, -WΩ/2, WΩ/2 , -H0, 0.0)
-  partition = (nx, ny, nz)
-  xdᵢₙ = 0.0
-  xdₒₜ = x₀ + LΩ - Ld
-  xm₀ = xdᵢₙ + 1.5*Lm
-  xm₁ = xm₀ + Lm
-  ym₀ = -Wm/2
-  ym₁ = Wm/2
+  Ld = 20 #damping zone length
+  LΩ = 80
+  WΩ = 40
+  x₀ = -40
+  xdᵢₙ = -20
+  xdₒₜ = 20
 
 end
 

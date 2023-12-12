@@ -41,10 +41,13 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
     tock()
   
     # Eigen values
-    λ = LinearAlgebra.eigvals(Mtot\Matrix(K11))
-    V = LinearAlgebra.eigvecs(Mtot\Matrix(K11))  
-    # @show real.(λ[1:nωₙ])
-    # ωₙ = sqrt.(real.(λ))
+    # λ = LinearAlgebra.eigvals(Mtot\Matrix(K11))
+    # V = LinearAlgebra.eigvecs(Mtot\Matrix(K11))  
+    # # @show real.(λ[1:nωₙ])
+    # # ωₙ = sqrt.(real.(λ))
+    Ur, S, Vr = svd(Mtot\Matrix(K11))
+    λ = reverse(S)
+    V = reverse(Vr, dims=2)
     rλ = real.(λ[1:nωₙ])
     @show rλ
     return(rλ[1:nωₙ], V[:,1:nωₙ])
@@ -272,18 +275,20 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
       rλ, V = run_freq(ω)
       ωₒ = ω      
       ωᵣ = sqrt(rλ[i])
-      if(i==1)
-        #ω = 0.2 * ωₙ[i] + 0.8*ω
-        ω = 0.0
-        Δω = 0.0
-        V = V*0.0
-      elseif(i==4)
-        ω = 0.2 * ωᵣ + 0.8*ωₒ
-        Δω = abs(ω - ωₒ)/ωₒ
-      else
-        ω = 0.5 * ωᵣ + 0.5*ωₒ
-        Δω = abs(ω - ωₒ)/ωₒ
-      end      
+      # if(i==1)
+      #   #ω = 0.2 * ωₙ[i] + 0.8*ω
+      #   ω = 0.0
+      #   Δω = 0.0
+      #   V = V*0.0
+      # elseif(i==4)
+      #   ω = 0.2 * ωᵣ + 0.8*ωₒ
+      #   Δω = abs(ω - ωₒ)/ωₒ
+      # else
+      #   ω = 0.5 * ωᵣ + 0.5*ωₒ
+      #   Δω = abs(ω - ωₒ)/ωₒ
+      # end      
+      ω = 0.5 * ωᵣ + 0.5*ωₒ
+      Δω = abs(ω - ωₒ)/ωₒ
       # @show ωₙ      
       lIter += 1
       @show i, ω, Δω, lIter
