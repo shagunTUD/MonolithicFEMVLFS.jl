@@ -20,22 +20,21 @@ export freq_time_trans
 #Output is a DataFrame containing all the variations of parameters in the rows, while the different columns represent diffrent input spectrum
 
 
-function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp; 
+function freq_time_trans(rao::DataFrameRow, 
+    spectrum, xi; 
     time_steps = 0.25 ,seconds::Int64 =1200) 
     #rao should be a DataFrameRow
     
     #rao is the response amplitude function for a constant wavespectrum A = 1 and intial phaseshift = 0 
     
-    #freInd = collect(40:1910)
-    freqInd = collect(40:1140)
+    Tp = spectrum["PeakPeriod"]
+    Hs = spectrum["Hs"]
+    ω = spectrum["frequency"]
+    k = spectrum["wavenumber"]
+    A = spectrum["amplitude"]    
+    α = spectrum["phaseshift"]
 
-    ω = spectrum[!,"frequency"]
-    k = spectrum[!,"wavenumber"]
-    A = spectrum[!,"amplitude"]
-    λ = spectrum[!, "wavelength"]
-    α = spectrum[!, "phaseshift"]
-
-    slope_spectrum = (2* π * A) ./ λ      #Wave Height over wave length
+    slope_spectrum = k .* A  #Wave Height over wave length
 
     RAO_η  = rao["RAO_η"] 
     RAO_ηx = rao["RAO_ηx"]
@@ -53,7 +52,7 @@ function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp;
     ω_org = repeat(ω_org, 1, size(RAO_ηx)[2])
     #RAOs need to be interpolated 
 
-    xi = range(0, 2*pi*2, 2401)[freqInd] #Nw 2401 between 0 and 2*pi*2hz -> just take values between 0.2 and 10 rad/s
+    #xi = range(0, 2*pi*2, 2401)[freqInd] #Nw 2401 between 0 and 2*pi*2hz -> just take values between 0.2 and 10 rad/s
     RAOη_new = zeros(length(xi) ,size(RAO_η)[2])
     RAOηx_new = zeros(length(xi) ,size(RAO_ηx)[2])
     ϕ_η_new = zeros(length(xi) ,size(ϕ_η)[2])
@@ -61,14 +60,14 @@ function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp;
 
     tick()
     for i in 1:(size(RAOη_new)[2])
-        inter_η = linear_interpolation(ω_org[:,i], RAO_η[:,i],extrapolation_bc = Line())
+        inter_η = linear_interpolation(ω_org[:,i], RAO_η[:,i])
         RAOη_new[:,i] = inter_η(xi)
-        inter_ηx = linear_interpolation(ω_org[:,i], RAO_ηx[:,i],extrapolation_bc = Line())
+        inter_ηx = linear_interpolation(ω_org[:,i], RAO_ηx[:,i])
         RAOηx_new[:,i] = inter_ηx(xi)
-        inter_ϕ_η = linear_interpolation(ω_org[:,i], ϕ_η[:,i],extrapolation_bc = Line())
-        ϕ_η_new = inter_ϕ_η(xi)
-        inter_ϕ_ηx = linear_interpolation(ω_org[:,i], ϕ_ηx[:,i],extrapolation_bc = Line())
-        ϕ_ηx_new = inter_ϕ_ηx(xi)
+        inter_ϕ_η = linear_interpolation(ω_org[:,i], ϕ_η[:,i])
+        ϕ_η_new[:,i] = inter_ϕ_η(xi) #Philipp mistake!!!
+        inter_ϕ_ηx = linear_interpolation(ω_org[:,i], ϕ_ηx[:,i])
+        ϕ_ηx_new[:,i] = inter_ϕ_ηx(xi)
     end
     tock()
     #From now on the RAO have more rows, columns represent the postions
@@ -93,7 +92,7 @@ function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp;
     slope_angle = ϕ_ηx_new .+ α
     
   
-    # #Functions to calculate the sume  Philip
+    # #Functions to calculate the sume  Philip incorrect
     # fourier_η(t) =  sum(elevation_amp .* sin.(ω*t.+ elevation_angle),dims=1) #function to sum up all fourier parts for every point for a specific time
     # #fourier_ηᵪ(x) = sum(slope_amp .* sin.(ω*x-k * x .+ slope_angle),dims=1)
     # fourier_ηᵪ(x) = sum(slope_amp .* sin.(ω*x .+ slope_angle),dims=1) #right formulation
@@ -101,8 +100,10 @@ function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp;
     #Functions to calculate the sume 
     fourier_η(t) =  sum(elevation_amp .* 
         cos.(-ω*t.+ elevation_angle), dims=1) #function to sum up all fourier parts for every point for a specific time    
-    fourier_ηᵪ(t) = sum( -slope_amp .* 
-        sin.(-ω*t.+ elevation_angle), dims=1) 
+    # fourier_ηᵪ(t) = sum( -slope_amp .* 
+    #     sin.(-ω*t.+ elevation_angle), dims=1) 
+    fourier_ηᵪ(t) = sum( slope_amp .* 
+        cos.(-ω*t.+ slope_angle), dims=1) 
 
     time_points = collect(0:time_steps:seconds)
     vec(time_points)
@@ -146,21 +147,9 @@ function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp;
 
 
     rao = select!(rao, Not([:amplitude, :omega, :length_beam, :RAO_ηx, :RAO_η, :η_ϕ, :ηx_ϕ,  :phase, :path ]))
-    
-    rao_dict = Dict("material" => rao.material[1],
-                    "h_b" => rao.h_b[1],
-                    "theta_time" => rao.theta_time[1],
-                    "theta_mean" => rao.theta_mean[1],
-                    "theta_std" => rao.theta_std[1],
-                    "mesh_size" => rao.mesh_size
-                    )
-    
-    theta_dict = Dict("material" => rao.material[1],
-                        "h_b" => rao.h_b[1],
-                        "theta" => θ)
-                        
-     
+                                     
     println("THETA")
+    # 4800 is seconds/dt
     save_df_theta = DataFrame(zeros(4801,size(θ,2)+2), :auto)
     rename!(save_df_theta, :x1 => :h_b)
     rename!(save_df_theta, :x2 => :material)
@@ -173,25 +162,17 @@ function freq_time_trans(rao::DataFrameRow, spectrum, Hs, Tp;
     save_df_theta[!,3:end] = θ
     
     filepath = "fpv_pp_" * string(Tp) *"_Hs_"*string(Hs)
-    #Mac
+    
     filename = "/time_res_mat_" * rao.material[1] *
-        "_hb_"*string(rao.h_b[1]) * "_numFloat_"*string(rao.numFloat[1])
-    # filename = "/aaa_time results mat_" * rao.material[1] *
-    #     "_hb_"*string(rao.h_b[1])
-    CSV.write(datadir("fpv_202312")*"/"*filepath*filename *".csv", save_df_theta; delim = ';')
+        "_hb_"*string(rao.h_b[1]) * 
+        "_numFloat_"*string(rao.numFloat[1])
+    
+    CSV.write(datadir("fpv_202401")*"/"
+        *filepath*filename*".csv", 
+        save_df_theta; delim = ';')
 
-    #if you return the RAO_dict, you can use it in the "Initialize_freq_time",
-    #but I just used to save the CSV file directly here and not use the dict. 
-    return rao_dict
+    
 end
-
-
-
-
-
-
-
-
 
 
 end

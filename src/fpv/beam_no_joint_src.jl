@@ -166,8 +166,10 @@ function run_beam(params::Dict)
     #discrete model of the full domain
     
     nx = round(Int, LΓ/mesh_size)
-    nz = 20
-    mesh_rz = 1.15
+    # nz = 20
+    # mesh_rz = 1.15
+    nz = 5
+    mesh_rz = 1.85
     @show partition = (nx,nz)    #
 
     # Mesh
@@ -182,7 +184,7 @@ function run_beam(params::Dict)
             a0 = H0 * (r-1) / (r^n - 1)    
             if(dbgmsg)
                 ln = 0:n
-                ly = -a0 / (r-1) * (r.^ln .- 1)         
+                ly = H0.-a0 / (r-1) * (r.^ln .- 1)         
                 @show hcat( ly, [ 0; ly[1:end-1] - ly[2:end] ] )
             end
             
@@ -234,7 +236,8 @@ function run_beam(params::Dict)
     Γκ  = Triangulation(Γ,Γκ_to_Γ)
 
     # Measures
-    order = 2
+    order = 4
+    orderBM = 2
     degree = 2*order
     dΩ = Measure(Ω,degree)
     dΓb = Measure(Γb,degree)
@@ -376,17 +379,33 @@ function run_beam(params::Dict)
         ϕh , ηh, κh = Gridap.solve(op)
         tock()
         
-
-        V_Γη2 = FESpace(Γη, reffe, conformity=:H1, vector_type=Vector{ComplexF64})
+        # Derivatives
+        reffeBM = ReferenceFE(lagrangian,Float64,orderBM)
+        V_Γη2 = FESpace(Γη, reffeBM, conformity=:H1, 
+            vector_type=Vector{ComplexF64})                
         
-        ∇ₓ(η) = ∇(η) ⋅ VectorValue(1.0, 0.0)
-        ηhx = ∇ₓ(ηh) 
+        ηhx = ∇(ηh) ⋅ VectorValue(1.0, 0.0)                    
         
-        fTemp = interpolate_everywhere(ηhx, V_Γη2)
-        ηhxx = ∇ₓ(fTemp)
+        # fTemp = interpolate_everywhere(ηhx, V_Γη2)
+        ηhxx = ∇∇(ηh)⊙TensorValue(1.0,0.0,0.0,0.0)
 
         fTemp = interpolate_everywhere(ηhxx, V_Γη2)
-        ηhxxx = ∇ₓ(fTemp)
+        ηhxxx = ∇(fTemp) ⋅ VectorValue(1.0, 0.0) 
+
+        jump_ηhxxx = jump(∇(fTemp))
+
+        # tt = ηhx
+        # tt2 = ηhxx        
+        # tt2b = ηhxx        
+        # @show tt(Point(762.0-0.00001,30.0))
+        # @show tt(Point(762.0+0.00001,30.0))
+        # @show tt2(Point(762.0-0.00001,30.0))
+        # @show tt2b(Point(762.0-0.00001,30.0))
+        # @show tt2(Point(762.0+0.00001,30.0))
+        # @show tt2b(Point(762.0+0.00001,30.0))
+        # @show tt2(Point(762.0,30.0))
+        # @show tt2b(Point(762.0,30.0))
+        # @show jump_ηhxxx(Point(762.0,30.0))
         
         # @show ηhx(Point(761.5, 30.0))
         # @show ηhxx(Point(761.5, 30.0))        

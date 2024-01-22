@@ -48,13 +48,13 @@ function run_case(mfac = 0.9, tfac = 0.1)
     λ = reverse(S)
     V = reverse(Vr, dims=2)
     rλ = real.(λ[1:nωₙ])
-    @show rλ
+    @show rλ    
     return(rλ[1:nωₙ], V[:,1:nωₙ])
       
   end
 
   caseName = "ten" * @sprintf("%0.2f", tfac) *"_mass" * @sprintf("%0.2f", mfac)
-  name::String = "data/sims_202310/mem_modes_free/mem_modes_"*caseName
+  name::String = "data/sims_202311/mem_modes_free/mem_modes_"*caseName
   order::Int = 2
   vtk_output::Bool = true
   filename = name*"/mem"
@@ -243,7 +243,8 @@ function run_case(mfac = 0.9, tfac = 0.1)
 
   #xp = range(xm₀, xm₁, size(V,2)+2)
 
-  nωₙ = 5
+  maxIter = 15
+  nωₙ = 6
   da_ωₙ = zeros(Float64, 1, nωₙ)
   @show ωₙ=zeros(Float64, 1, nωₙ) .+ ω
   da_V = []
@@ -257,10 +258,11 @@ function run_case(mfac = 0.9, tfac = 0.1)
   for i in 1:nωₙ
     # global da_ωₙ, da_V  
     # global ωₙ, ω
-    local V
+    local V, lIter
+    lIter = 0    
     Δω = 1
     ω = ωₙ[i]
-    while Δω > 1e-3
+    while ((Δω > 1e-3) && (lIter < maxIter))
       # global ω, ωₙ
       rλ, V = run_freq(ω)
       ωₒ = ω      
@@ -270,15 +272,18 @@ function run_case(mfac = 0.9, tfac = 0.1)
       #   ω = 0.0
       #   Δω = 0.0
       #   V = V*0.0
-      if(i==4)
-        ω = 0.2 * ωᵣ + 0.8*ωₒ
-        Δω = abs(ω - ωₒ)/ωₒ
-      else
-        ω = 0.5 * ωᵣ + 0.5*ωₒ
-        Δω = abs(ω - ωₒ)/ωₒ
-      end      
+      # if(i==4)
+      #   ω = 0.2 * ωᵣ + 0.8*ωₒ
+      #   Δω = abs(ω - ωₒ)/ωₒ
+      # else
+      #   ω = 0.5 * ωᵣ + 0.5*ωₒ
+      #   Δω = abs(ω - ωₒ)/ωₒ
+      # end      
+      ω = 0.5 * ωᵣ + 0.5*ωₒ
+      Δω = abs(ω - ωₒ)/ωₒ
+      lIter += 1
       # @show ωₙ
-      @show i, ω, Δω
+      @show i, ω, Δω, lIter
     end
     da_ωₙ[i] = ω
     push!(da_V, V[:,i])
@@ -297,8 +302,8 @@ function run_case(mfac = 0.9, tfac = 0.1)
   wsave(filename*"_modesdata.jld2", data)
 end
 
-mfac = [0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0 ]
-tfac = [0.05, 0.10, 0.25, 0.50, 0.75]
+# mfac = [0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0 ]
+# tfac = [0.05, 0.10, 0.25, 0.50, 0.75, 0.8]
 
 # mfac = [0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0 ]
 # tfac = [0.8]
