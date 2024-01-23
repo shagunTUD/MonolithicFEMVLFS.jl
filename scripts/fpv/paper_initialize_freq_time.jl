@@ -14,13 +14,13 @@ using Statistics
 using TickTock
 
 
-#using .Freq_time
-include(srcdir("fpv","paper_freq_time_convert.jl"))
+# include(srcdir("fpv","paper_phil_freq_time_convert.jl"))
+# df = collect_results(datadir("fpv_202401","casePhil","all"))
+
+# include(srcdir("fpv","paper_freq_time_convert.jl"))
+# df = collect_results(datadir("fpv_202402","casePhil","all"))
 
 
-#load the simulation data 
-
-df = collect_results(datadir("fpv_202401","casePhil","all"))
 @show df
 
 Hs = 5.0
@@ -29,7 +29,7 @@ d = 30
 
 #freInd = collect(40:1910)
 freqInd = collect(40:1140)
-# freqInd = [200,500]
+#freqInd = [500,1140]
 
 #ω, S, A = JonswapComb.comb_jonswap(Hs, Tp;)
 
@@ -40,7 +40,6 @@ dw = ω[2]-ω[1]
 ω= ω[freqInd]
 A = A[freqInd]
 S = S[freqInd]
-xi = range(0, 2*pi*2, 2401)[freqInd]
 
 
 
@@ -63,7 +62,7 @@ for row in eachrow(df)
 
     tick()
     result = Freq_time.freq_time_trans(row,
-        spectrum_dict, xi)        
+        spectrum_dict)        
     tock()
     println()
 

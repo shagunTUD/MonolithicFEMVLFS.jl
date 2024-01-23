@@ -21,7 +21,7 @@ export freq_time_trans
 
 
 function freq_time_trans(rao::DataFrameRow, 
-    spectrum, xi; 
+    spectrum; 
     time_steps = 0.25 ,seconds::Int64 =1200) 
     #rao should be a DataFrameRow
     
@@ -33,6 +33,8 @@ function freq_time_trans(rao::DataFrameRow,
     k = spectrum["wavenumber"]
     A = spectrum["amplitude"]    
     α = spectrum["phaseshift"]
+
+    xi = ω
 
     slope_spectrum = k .* A  #Wave Height over wave length
 

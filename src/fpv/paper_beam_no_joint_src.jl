@@ -228,14 +228,17 @@ export run_beam
 
     # FE spaces
     reffe = ReferenceFE(lagrangian,Float64,order)
-    V_Ω = TestFESpace(Ω, reffe, conformity=:H1, vector_type=Vector{ComplexF64})
-    V_Γη = TestFESpace(Γη, reffe, conformity=:H1, vector_type=Vector{ComplexF64})
-    V_Γk = TestFESpace(Γκ, reffe, conformity=:H1, vector_type=Vector{ComplexF64})
+    V_Ω = TestFESpace(Ω, reffe, conformity=:H1, 
+      vector_type=Vector{ComplexF64})
+    V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
+      vector_type=Vector{ComplexF64})
+    V_Γk = TestFESpace(Γκ, reffe, conformity=:H1, 
+      vector_type=Vector{ComplexF64})
     U_Ω = TrialFESpace(V_Ω)
     U_Γη = TrialFESpace(V_Γη)
     U_Γκ = TrialFESpace(V_Γk)
-    X = MultiFieldFESpace([U_Ω,U_Γη, U_Γκ])
-    Y = MultiFieldFESpace([V_Ω,V_Γη,V_Γk])
+    X = MultiFieldFESpace([U_Ω, U_Γη, U_Γκ])
+    Y = MultiFieldFESpace([V_Ω, V_Γη, V_Γk])
     
 
     # Probe positions         
@@ -253,6 +256,8 @@ export run_beam
     da_ηxxx = DataFrame(lDa,:auto)
     # da_jump_ηxxx = DataFrame(zeros(Complex, 1, length(xj)),:auto)
     da_wavePrb = DataFrame(zeros(Complex,1,4),:auto)
+    da_ηdof = DataFrame(
+      zeros(Complex, 1, U_Γη.nfree), :auto)
     
 
     function run_spectrum(ω,A_w,k,α,λ)
@@ -359,6 +364,7 @@ export run_beam
       push!(da_ηxxx, evaluate!(cache_ηxxx, ηhxxx, prb_xy))
       # push!(da_jump_ηxxx, jump_ηhxxx.(prbj_xy))
       push!(da_wavePrb, κh.(prb_wave) )
+      push!(da_ηdof, get_free_dof_values(ηh))
 
       # println("Max Jump ", maximum(abs.(jump_ηhxxx.(prbj_xy))) )
 
@@ -383,6 +389,8 @@ export run_beam
     # da_jump_ηxxx = da_jump_ηxxx[2:end,:]
     da_wavePrb = da_wavePrb[2:end,:]
     
+    
+    ηdof = Matrix(da_ηdof[2:end,:])
     
     η_a = Matrix(abs.(da_η))
     η_ϕ = Matrix(angle.(da_η))
@@ -416,14 +424,14 @@ export run_beam
 
 
     # Not Empty tank    
-    function RAO_revised(λin, η_a, ηx_a, ηxx_a, ηxxx_a) 
+    function RAO_revised(λin, η_a, ηx_a, ηxx_a, ηxxx_a, ηdof) 
           
       #expand the vectors to the size of length(ω),length(probx)
       daRef = wload(datadir("fpv_202401","empt",
         "Empt_length_beam=100_mesh_size=1.0.jld2"))
-      ηin_a_m = daRef["RAO_η"]
+      ηin_a_m = daRef["RAO_η"]      
       λin_m = repeat(λin,1,size(η_a)[2])     
-      k_m = 2*π ./ λin_m       
+      k_m = 2*π ./ λin_m            
       
       RAO_η = η_a ./ ηin_a_m
       RAO_ηx = ηx_a ./ (k_m .* ηin_a_m)
@@ -431,14 +439,21 @@ export run_beam
       RAO_ηxx = ηxx_a ./ (k_m .* k_m .* ηin_a_m)
       RAO_ηxxx = ηxxx_a ./ (k_m .* k_m .* k_m .* ηin_a_m)       
 
-      return RAO_η, RAO_ηx, RAO_ηxx, RAO_ηxxx
+
+      ηin_a_avg = sum(ηin_a_m, dims=2) / size(ηin_a_m,2)
+      ηin_a_avg = repeat(ηin_a_avg, 1, size(ηdof,2))  
+      ηdof_scaled = ηdof ./ ηin_a_avg
+
+      return RAO_η, RAO_ηx, RAO_ηxx, RAO_ηxxx, ηdof_scaled
     end
     
-    RAO_η, RAO_ηx, RAO_ηxx, RAO_ηxxx = RAO_revised(λ, η_a, 
-      ηx_a, ηxx_a, ηxxx_a)
+    RAO_η, RAO_ηx, 
+      RAO_ηxx, RAO_ηxxx,
+      ηdof_scaled = RAO_revised(λ, η_a, 
+      ηx_a, ηxx_a, ηxxx_a, ηdof )
 
     return RAO_η, RAO_ηx, η_ϕ, ηx_ϕ, 
-      RAO_ηxx, RAO_ηxxx, da_wavePrb,
+      RAO_ηxx, RAO_ηxxx, da_wavePrb, ηdof_scaled,
       EI_b, massPerArea
     
   end
