@@ -109,8 +109,13 @@ export run_beam
     k = dispersionRelAng.(d, ω; msg=false)
     λ = 2*π./k
     
-    # Parameters for simulation
-    α1_b = ρ_b*h_b/ρ_w        
+    ## Parameters for simulation
+    # Draft 
+    # α1_b = ρ_b*h_b/ρ_w        
+    α1_b = (ρ_b*h_b*2.0 + 1800*0.002*1.42)/(2.0 * ρ_w)
+    # The 2.0 in the denominator is the water-plane area over which 
+    # the weight is distributed
+    
     α2_b = EI_b/ρ_w
     massPerArea = α1_b * ρ_w
 
