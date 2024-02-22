@@ -17,8 +17,8 @@ using TickTock
 # include(srcdir("fpv","paper_phil_freq_time_convert.jl"))
 # df = collect_results(datadir("fpv_202401","casePhil","all"))
 
-# include(srcdir("fpv","paper_freq_time_convert.jl"))
-# df = collect_results(datadir("fpv_202402","casePhil","all"))
+include(srcdir("fpv","paper_freq_time_convert.jl"))
+df = collect_results(datadir("fpv_202402","casePhil","all"))
 
 
 @show df
