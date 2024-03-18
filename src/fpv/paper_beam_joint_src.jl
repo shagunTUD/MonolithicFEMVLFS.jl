@@ -88,13 +88,14 @@ export run_beam
 
     #Material properties
     #γ = 1
-    ρ_b, E = give_material(mat)      # bending stiffness parameter
+    ρ_b, E, hollowRatio = give_material(mat)      # bending stiffness parameter
+    @show ρ_b, E, hollowRatio
     
     ρ_b = ρ_b             # mass density VLFS [kg m^-3]
     L = length_beam         # total length VLFS [m]
     
 
-    I = 1/12*h_b^3        # second moment of inertia per unit meter width (I/b) 
+    I = 1/12*h_b^3 * (1.0 - hollowRatio^3)        # second moment of inertia per unit meter width (I/b) 
     #E = material[1]         # Youngs modulus [N/m^2] for HDPE
     EI_b = E * I     # bending stiffness VLFS per unit meter width [Nm/m]  
     ξ = 0                   # rotational stiffness parameter
@@ -111,7 +112,8 @@ export run_beam
     ## Parameters for simulation
     # Draft 
     # α1_b = ρ_b*h_b/ρ_w        
-    α1_b = (ρ_b*h_b*2.0 + 1800*0.002*1.42)/(2.0 * ρ_w)
+    h_b_fill = h_b * (1.0 - hollowRatio)
+    α1_b = (ρ_b*h_b_fill*2.0 + 1800*0.002*1.42)/(2.0 * ρ_w)
     # The 2.0 in the denominator is the water-plane area over which 
     # the weight is distributed
     
