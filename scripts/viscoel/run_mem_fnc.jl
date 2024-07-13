@@ -7,7 +7,7 @@ using .Constants
 # Here you may include files from the source directory
 include(srcdir("viscoel","mem_freq_damp_free_fnc.jl"))
 
-resDir::String = "data/sims_202306/run/spec_free"
+resDir::String = "data/sims_202403/run/spec_free"
 
 # Warm-up run
 params = Memb2D.Memb_params_warmup(name = resDir)

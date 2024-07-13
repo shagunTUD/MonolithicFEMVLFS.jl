@@ -8,7 +8,7 @@ using WaveSpec
 using .Constants
 
 
-name::String = "data/sims_202306/run/mono_freq_free"
+name::String = "data/sims_202403/run/mono_freq_free"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -25,7 +25,7 @@ H0 = 10 #m #still-water depth
 diriFlag = false
 
 # Wave parameters
-ω = 2.4#3.45#2.0#2.4
+ω = 2.40#3.45#2.0#2.4
 η₀ = 0.10
 k = dispersionRelAng(H0, ω)
 λ = 2*π/k

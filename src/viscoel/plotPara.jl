@@ -18,6 +18,55 @@ using LaTeXStrings
 # function plotRes()
 # global κₕ
 
+
+function read_case(plt1; mfac = 0.9, tfac = 0.1, modeN=1, lsvar=1)
+
+  caseName = "ten" * @sprintf("%0.2f", tfac) *"_mass" * @sprintf("%0.2f", mfac)
+  name = "data/sims_202403/mem_modes_res_free_eigen/mem_modes_"*caseName
+  filename = name*"/mem_modesdata.jld2"
+
+  da = wload(filename)
+  
+  #xp = da["xp"]
+  ω = da["ωₙ"]
+  V = da["V"]
+
+  # Plots Wet
+  i = modeN
+  ωi = ω[i]
+  Vi = V[i]
+  Vi = Vi * sign(Vi[4])
+  Vi = real.(Vi)/norm(real.(Vi))
+  ωi_rnd = round(ωi; digits=2)
+
+  # SingleFieldFunction Wet
+  nx = length(Vi)-1
+  fva(x) = 0.0
+  reffe = ReferenceFE(lagrangian,Float64,2)
+  memModel = CartesianDiscreteModel((0.0, Lm), nx/2 )
+  fv = interpolate_everywhere( fva, FESpace( memModel, reffe ) )
+
+  # [ println( (i,ivi) ) for (i,ivi) in zip( range(1,nx+1), Vi ) ] 
+  
+  @test length(fv.free_values) == length(Vi)
+  for i in 1:nx+1
+    fv.free_values[i] = Vi[i]
+  end
+  
+  xp = range(0, Lm, nx+1)
+  xpPoi = [Point(ixp) for ixp in xp]
+
+  tlbl = tfac/4
+  mlbl = mfac / Lm
+
+  plot!(plt1, (xp.+80)/Lm, abs.(fv.(xpPoi))/Lm*50 .+ 0.25, 
+    lw=5, label=nothing, lc=:green, ls = :dash)    
+  
+  
+end
+
+
+
 dx = 0.2
 amp = 0.1
 
@@ -31,6 +80,8 @@ setlw = 5
 #   color = :turbo, levels=20)
 
 plt1 = plot()
+
+read_case(plt1, modeN=3)
 
 # Membrane
 xka = 80:dx:100
@@ -81,6 +132,10 @@ plot!(plt1, xlbl, ylbl,
   lc = :blue, lw = lgndlw, label = L"| \, \kappa_r \, |")
 plot!(plt1, xlbl, ylbl,   
   lc = :blue, lw = lgndlw, ls = :dot, label = L"| \, \kappa_{in} \, |")
+plot!(plt1, xlbl, ylbl,   
+  lc = :green, lw = lgndlw, ls = :dash,
+  label = L"|" )
+  # label = latexstring(L"|"," Mode 2 + Rigid Heave ",L"|") )
 
 
 plot!(plt1, 
@@ -92,7 +147,7 @@ plot!(plt1,
 plot!(plt1, 
   xlabel = L"x/L_m",
   ylabel = L"| \eta | /\kappa_0",
-  title = L"\textit{MEMB1} \, | \, ω = 2.4 \, rad \, s^{-1} \, | \, \tau = 0.10")
+  title = L"\textit{MEMB1} \, | \, ω = 2.4 \, rad \, s^{-1} \, | \, \tau = 0.0")
 
 vline!(plt1, (2.5, 2.5), lw = 3, color=:black, label=false )
 hline!(plt1, (0, 0), lw = 3, color=:black, label=false )

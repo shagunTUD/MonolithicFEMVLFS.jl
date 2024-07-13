@@ -11,14 +11,16 @@ using TickTock
 using DataFrames
 using Printf
 using Parameters
+using GridapGmsh
 
 
-function run_case(params, mfac = 0.9, tfac = 0.1)
+function run_case(params, imᵨ = 0.9, iTᵨ = 0.1)
   
   function run_freq(ω)
 
     k = dispersionRelAng(H0, ω; msg=false)
-    @show ω, k
+    @show ω, k    
+
   
     # Weak form: ω dependent
     k22(ϕ,w) = ∫( ∇(w)⋅∇(ϕ) )dΩ +
@@ -26,7 +28,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
   
     c23(κ,w) = ∫( im*ω*w*κ )dΓfs 
   
-    c32(ϕ,u) = ∫( -im*ω*u*ϕ )dΓfs 
+    c32(ϕ,u) = ∫( -im*ω*u*ϕ )dΓfs
     
     # Global matrices: ω dependent
     K22 = get_matrix(AffineFEOperator( k22, l2, U_Ω, V_Ω ))
@@ -53,13 +55,13 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
     # @show rλ
     # return(rλ[1:nωₙ], V[:,1:nωₙ])
 
-    # @show λ
+    @show sqrt.(λ[1:nωₙ])
     return(λ[1:nωₙ], V[:,1:nωₙ])
       
   end
 
-  @unpack resDir, order, order2, vtk_output = params
-  caseName = "ten" * @sprintf("%0.2f", tfac) *"_mass" * @sprintf("%0.2f", mfac)
+  @unpack resDir, mesh_file, order, order2, vtk_output = params
+  caseName = "ten" * @sprintf("%0.2f", iTᵨ) *"_mass" * @sprintf("%0.4f", imᵨ)
   name::String = resDir*"/mem_modes_"*caseName
   filename = name*"/mem"
 
@@ -72,101 +74,45 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
     mkdir(name)
   end  
 
-  @unpack H0, Lm, Wm,  = params
+  @unpack H0 = params
   ρw = 1025 #kg/m3 water
   @show H0  #m #still-water depth
 
   # Membrane parameters
-  @show Lm #m
-  @show Wm #m 
   @show g #defined in .Constants
-  mᵨ = mfac  #mass per unit area of membrane / ρw
-  Tᵨ = tfac/4*g*Lm*Lm #T/ρw
+  mᵨ = imᵨ  #mass per unit area of membrane / ρw
+  Tᵨ = iTᵨ #T/ρw
 
   # Excitation wave parameters
   ω = 1.0
 
   # Domain
-  @unpack nx, ny, nz, mesh_rz, LΩ, WΩ = params 
-  @unpack x₀, domain, partition, xm₀, xm₁, ym₀, ym₁ = params
-  @show Lm, Wm
+  @unpack LΩ, WΩ = params 
+  @unpack x₀, xdᵢₙ, xdₒₜ = params
   @show LΩ, WΩ
-  @show domain
-  @show partition
-  @show (xm₀, xm₁) (ym₀, ym₁)
-  @show isinteger(Lm/LΩ*nx)
-  @show LΩ/nx
-  @show H0/nz
   println()
   #@show Ld*k/2/π
   #@show cosh.(k*H0*0.5)./cosh.(k*H0)
 
 
-  # Mesh
-  @unpack dbgmsg = params
-  function f_z(z, r, n, H0; dbgmsg = false)
-    # Mesh along depth as a GP
-    # Depth is 0 to -H0    
-    if(r ≈ 1.0)
-      return z 
-    else
-      a0 = H0 * (r-1) / (r^n - 1)    
-      if(dbgmsg)
-        ln = 0:n
-        lz = -a0 / (r-1) * (r.^ln .- 1)         
-        @show hcat( lz, [ 0; lz[1:end-1] - lz[2:end] ] )
-      end
-      
-      if z ≈ 0
-        return 0.0
-      end
-      j = abs(z) / H0 * n  
-      return -a0 / (r-1) * (r^j - 1)
-    end
-  end
-  map(x) = VectorValue( x[1], x[2], f_z(x[3], 
-    mesh_rz, nz, H0; dbgmsg=dbgmsg) )
-  model = CartesianDiscreteModel(domain,partition,map=map)
+  # Mesh  
+  model = DiscreteModelFromFile(mesh_file)  
 
 
-  # Labelling
-  labels_Ω = get_face_labeling(model)
-  add_tag_from_tags!(labels_Ω,"surface",
-    [5,6,7,8,11,12,15,16,22])   
-  add_tag_from_tags!(labels_Ω,"bottom",
-    [1,2,3,4,9,10,13,14,21])
-  add_tag_from_tags!(labels_Ω,"inlet",
-    [17,19,25]) 
-  add_tag_from_tags!(labels_Ω,"outlet",
-    [18,20,26])   
-  add_tag_from_tags!(labels_Ω,"swNear",
-    [23])   
-  add_tag_from_tags!(labels_Ω,"swFar",
-    [24])   
-
-
-  # Triangulations
+  # # Triangulations
   Ω = Interior(model) #same as Triangulation()
-  Γ = Boundary(model,tags="surface") #same as BoundaryTriangulation()
-  Γin = Boundary(model,tags="inlet")
-  Γot = Boundary(model,tags="outlet")
+  Γ = Boundary(model, tags=["FreeSurface","Membrane"]) #same as BoundaryTriangulation()
+  Γin = Boundary(model, tags="Inlet")
+  Γot = Boundary(model, tags="Outlet")
+  Γcyl = Boundary(model, tags="Cylinder")
+  Γbot = Boundary(model, tags="Bottom")
 
-
-  # Auxiliar functions
-  function is_mem(xs) # Check if an element is inside the beam1
-    n = length(xs)
-    x = (1/n)*sum(xs)
-    (xm₀ <= x[1] <= xm₁ ) * (ym₀ <= x[2] <= ym₁) * ( x[3] ≈ 0.0)
-  end
-
-
+  
   # Masking and Beam Triangulation
-  xΓ = get_cell_coordinates(Γ)
-  Γm_to_Γ_mask = lazy_map(is_mem, xΓ)
-  Γm = Triangulation(Γ, findall(Γm_to_Γ_mask))
-  Γfs = Triangulation(Γ, findall(!, Γm_to_Γ_mask))
-  Γη = Triangulation(Γ, findall(Γm_to_Γ_mask))
-  Γκ = Triangulation(Γ, findall(!,Γm_to_Γ_mask))
+  Γκ = Boundary(model, tags = "FreeSurface")
+  Γm = Boundary(model, tags = "Membrane")
+  Γη = Γm  
+  Γfs = Γκ
 
 
   # # Construct the tag for membrane boundary
@@ -227,7 +173,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
 
 
   # Weak form: Constant matrices
-  ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
+  ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,0.0,1.0)  
   m11(η,v) = ∫( mᵨ*v*η )dΓm
   k11(η,v) = ∫( v*g*η + Tᵨ*∇(v)⋅∇(η) )dΓm #+  
               # ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb #diri
@@ -236,7 +182,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
 
   c21(η,w) = ∫( w*η )dΓm  
 
-  k33(κ,u) = ∫( u*g*κ )dΓfs
+  k33(κ,u) = ∫( u*g*κ )dΓfs 
 
   l1(v) = ∫( 0*v )dΓm
   l2(w) = ∫( 0*w )dΩ
@@ -254,7 +200,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
   println("[MSG] Done Global matrices")
   println(K11 == transpose(K11))
 
-  #xp = range(xm₀, xm₁, size(V,2)+2)
+  # #xp = range(xm₀, xm₁, size(V,2)+2)
 
   @unpack nωₙ, errLim, maxIter = params
   da_ωₙ = zeros(Float64, 1, nωₙ)
@@ -281,11 +227,7 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
       # rλ, V = run_freq(ω)
       # ωₒ = ω      
       # ωᵣ = sqrt(rλ[i])
-
-      λ, V = run_freq(ω)
-      ωₒ = ω      
-      ωᵣ = real(sqrt(λ[i]))      
-
+      
       # if(i==1)
       #   #ω = 0.2 * ωₙ[i] + 0.8*ω
       #   ω = 0.0
@@ -298,8 +240,12 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
       #   ω = 0.5 * ωᵣ + 0.5*ωₒ
       #   Δω = abs(ω - ωₒ)/ωₒ
       # end      
+
+      λ, V = run_freq(ω)
+      ωₒ = ω      
+      ωᵣ = real(sqrt(λ[i]))
       
-      ω = 0.7 * ωᵣ + 0.3*ωₒ
+      ω = 0.6 * ωᵣ + 0.4*ωₒ
       Δω = abs(ω - ωₒ)/ωₒ
       # @show ωₙ      
       lIter += 1
@@ -311,39 +257,29 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
 
   println(da_ωₙ)
 
-  xp = range(xm₀, xm₁, length(da_V[1]))
+  # xp = range(xm₀, xm₁, length(da_V[1]))
 
   data = Dict(
-    "xp" => xp,
     "ωₙ" => da_ωₙ,
     "V" => da_V  
-  )
-
-  # data = Dict(
-  #   "model" => model, 
-  #   "Γκ" => Γκ, 
-  #   "V_Γκ" => V_Γκ, 
-  #   "reffe2" => reffe2, 
-  #   "order2" => order2)
+  )  
 
   wsave(filename*"_modesdata.jld2", data)
 end
 
 
-function main(params, mfac, tfac)
+function main(params, mᵨ, Tᵨ)
 
   # mfac = [0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0 ]
   # tfac = [0.05, 0.10, 0.25, 0.50, 0.75]
 
-  # # mfac = [0.2, 0.4, 0.5, 0.6, 0.8, 0.9, 1.0 ]
-  # # tfac = [0.8]
 
-  # mfac = [0.9]
-  # tfac = [0.1]
+  # mᵨ = [0.005] #970.0*0.005/1025 #mass per unit area of membrane / ρw
+  # Tᵨ = [48.78] #1e7 stress x 0.005 thick #T/ρw
 
-  for imfac in mfac
-    for itfac in tfac
-      run_case(params, imfac, itfac)
+  for imᵨ in mᵨ
+    for iTᵨ in Tᵨ
+      run_case(params, imᵨ, iTᵨ)
     end
   end
 end
@@ -355,16 +291,14 @@ Memb_params
 Parameters for the VIV.jl module.
 """
 @with_kw struct Memb_params
+
+  mesh_file::String = "data/sims_202311/northHoyle_mesh/mesh/mesh0/meshWorks.msh"
   resDir::String = "data/sims_202309/mem3D_modes_res_free"
   order::Int = 1
   order2::Int = 2
   vtk_output::Bool = true
 
   H0 = 10 #m #still-water depth
-
-  # Membrane parameters
-  Lm = 2*H0 #m
-  Wm = Lm  
 
   nωₙ = 2
   errLim = 1e-1
@@ -373,19 +307,12 @@ Parameters for the VIV.jl module.
   dbgmsg = false
 
   # Domain 
-  nx = 30
-  ny = 8
-  nz = 4
-  mesh_rz = 1.2 #Ratio for Geometric progression of eleSize
-  LΩ = 6*H0 
-  WΩ = 4*H0
-  x₀ = 0.0
-  domain =  (x₀, x₀+LΩ, -WΩ/2, WΩ/2 , -H0, 0.0)
-  partition = (nx, ny, nz)
-  xm₀ = x₀ + 2*H0
-  xm₁ = xm₀ + Lm
-  ym₀ = -Wm/2
-  ym₁ = Wm/2
+  Ld = 20
+  LΩ = 80
+  WΩ = 40
+  x₀ = -40
+  xdᵢₙ = -20
+  xdₒₜ = 20  
 
 end
 

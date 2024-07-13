@@ -23,12 +23,12 @@ function main(params)
     k = dispersionRelAng(H0, ω; msg = false)
     λ = 2*π/k
     T = 2π/ω
-    ηᵢₙ(x) = η₀*exp(im*k*(x[1]-x₀))
+    ηᵢₙ(x) = η₀*exp(im*k*(x[1]-xₚ))
     ϕᵢₙ(x) = -im*(η₀*ω/k)*(cosh(k*x[3]) / 
-      sinh(k*H0))*exp(im*k*(x[1]-x₀))
+      sinh(k*H0))*exp(im*k*(x[1]-xₚ))
     vxᵢₙ(x) = (η₀*ω)*(cosh(k*x[3]) / 
-      sinh(k*H0))*exp(im*k*(x[1]-x₀))
-    vzfsᵢₙ(x) = -im*ω*η₀*exp(im*k*(x[1]-x₀)) #???
+      sinh(k*H0))*exp(im*k*(x[1]-xₚ))
+    vzfsᵢₙ(x) = -im*ω*η₀*exp(im*k*(x[1]-xₚ)) #???
     @show ω, T
     @show λ
     @show η₀
@@ -51,35 +51,28 @@ function main(params)
 
     # Weak form
     ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,0.0,1.0)  
-    a((ϕ,κ,η),(w,u,v)) =      
+    a((ϕ,κ),(w,u)) =
       ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
       ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
       ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
         - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
       # ∫( -w * im * k * ϕ )dΓot +
       ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-        - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
-      ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
-        - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
-      #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
+        - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    
 
-    l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
+    l((w,u)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
 
 
     println("[MSG] Formulation complete")
 
     # Solution
     op = AffineFEOperator(a,l,X,Y)
-    (ϕₕ,κₕ,ηₕ) = solve(op)
+    (ϕₕ,κₕ) = solve(op)
     
     # xΓκ = get_cell_coordinates(Γκ)  
       
-    # Energy flux (Power) calculation
-    ηxyz = ∇(ηₕ) 
-    ηx = ηxyz ⋅ VectorValue(1.0, 0.0, 0.0)
-    ηy = ηxyz ⋅ VectorValue(0.0, 1.0, 0.0)
-    Pd = sum(∫( abs(ηx)*abs(ηx) + abs(ηy)*abs(ηy) )dΓm)
-    Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
+    # Energy flux (Power) calculation    
+    Pd = 0.0
 
     # Wave energy flux
     kh = k*H0
@@ -118,6 +111,12 @@ function main(params)
     paraFolder = name*"/mem_omg_"*@sprintf("%.2f",ω)
     paraFile = paraFolder*"/mem"
 
+    # Velocity calculation
+    vVec = ∇(ϕₕ)
+    vVx = vVec⋅VectorValue(1.0,0.0,0.0)
+    vVy = vVec⋅VectorValue(0.0,1.0,0.0)
+    vVz = vVec⋅VectorValue(0.0,0.0,1.0)
+
     if vtk_output == true
       if( isdir(paraFolder) )
         rm(paraFolder; recursive=true)
@@ -126,7 +125,10 @@ function main(params)
 
       writevtk(Ω,paraFile * "_O_sol.vtu",
         cellfields = ["phi_re" => real(ϕₕ),"phi_im" => imag(ϕₕ),
-        "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ)])
+        "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ),
+        "vx_re" => real(vVx), "vx_im" => imag(vVx),
+        "vy_re" => real(vVy), "vy_im" => imag(vVy),
+        "vz_re" => real(vVz), "vz_im" => imag(vVz) ])
       writevtk(Γκ,paraFile * "_Gk_sol.vtu",
         cellfields = ["eta_re" => real(κₕ),"eta_im" => imag(κₕ),
         "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ),
@@ -134,12 +136,7 @@ function main(params)
         "etaR_abs" => abs(κr), "etaR_ang" => angle∘(κr),
         "ηin_abs" => abs(κin), "ηin_ang" => angle∘(κin),
         "cx" => real(cx), "cy" => real(cy),
-        "cx_im" => imag(cx), "cy_im" => imag(cy)])
-      writevtk(Γη,paraFile * "_Ge_sol.vtu",
-        cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
-        "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ),
-        "eta_x_re" => real(ηx), "eta_x_im" => imag(ηx),
-        "eta_y_re" => real(ηy), "eta_y_im" => imag(ηy)])
+        "cx_im" => imag(cx), "cy_im" => imag(cy)])      
     end    
 
     tock()
@@ -174,7 +171,7 @@ function main(params)
 
   # Domain 
   @unpack mesh_file = params
-  @unpack Ld, LΩ, WΩ, x₀ = params
+  @unpack Ld, LΩ, WΩ, x₀, xₚ = params
   @unpack xdᵢₙ, xdₒₜ = params
   @show mesh_file  
   @show LΩ, WΩ
@@ -198,7 +195,8 @@ function main(params)
   Γin = Boundary(model, tags="Inlet")
   Γot = Boundary(model, tags="Outlet")
   Γcyl = Boundary(model, tags="Cylinder")
-
+  Γbot = Boundary(model, tags="Bottom")
+  
 
   # Auxiliar functions
   function is_damping1(xs) # Check if an element is inside the damping zone 1
@@ -213,14 +211,12 @@ function main(params)
   end
 
   # Masking and Beam Triangulation
-  Γκ = Boundary(model, tags = "FreeSurface")
+  Γκ = Boundary(model, tags = ["FreeSurface","Membrane"])
   xΓκ = get_cell_coordinates(Γκ)
   Γd1_to_Γ_mask = lazy_map(is_damping1, xΓκ)
   Γd2_to_Γ_mask = lazy_map(is_damping2, xΓκ)
   Γd1 = Triangulation(Γκ, findall(Γd1_to_Γ_mask))
   Γd2 = Triangulation(Γκ, findall(Γd2_to_Γ_mask))  
-  Γm = Boundary(model, tags = "Membrane")
-  Γη = Γm  
   Γfs = Triangulation(Γκ, findall(!, Γd1_to_Γ_mask .| Γd2_to_Γ_mask))
 
 
@@ -239,11 +235,11 @@ function main(params)
   if vtk_output == true
     writevtk(Ω,filename*"_O")
     writevtk(Γ,filename*"_G")
-    writevtk(Γm,filename*"_Gm")  
     writevtk(Γd1,filename*"_Gd1")
     writevtk(Γd2,filename*"_Gd2")
     writevtk(Γfs,filename*"_Gfs")
     writevtk(Γcyl,filename*"_Gcyl")
+    writevtk(Γbot,filename*"_Gbot")
     # writevtk(Λmb,filename*"_Lmb")  
   end
 
@@ -251,7 +247,6 @@ function main(params)
   # Measures
   degree = 2*order
   dΩ = Measure(Ω,degree)
-  dΓm = Measure(Γm,degree)
   dΓd1 = Measure(Γd1,degree)
   dΓd2 = Measure(Γd2,degree)
   dΓfs = Measure(Γfs,degree)
@@ -276,13 +271,10 @@ function main(params)
     vector_type=Vector{ComplexF64})
   V_Γκ = TestFESpace(Γκ, reffe, conformity=:H1, 
     vector_type=Vector{ComplexF64})  
-  V_Γη = TestFESpace(Γη, reffe, conformity=:H1, 
-      vector_type=Vector{ComplexF64})
   U_Ω = TrialFESpace(V_Ω)
   U_Γκ = TrialFESpace(V_Γκ)
-  U_Γη = TrialFESpace(V_Γη)
-  X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
-  Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])  
+  X = MultiFieldFESpace([U_Ω,U_Γκ])
+  Y = MultiFieldFESpace([V_Ω,V_Γκ])  
 
   # Power probes
   prbPow = DataFrame(zeros(Float64, 1, 3), :auto)
@@ -342,6 +334,7 @@ Parameters for the VIV.jl module.
   x₀ = -40
   xdᵢₙ = -20
   xdₒₜ = 20
+  xₚ = 0.0 # Location where Re(eta) = wave peak 
 
 end
 
