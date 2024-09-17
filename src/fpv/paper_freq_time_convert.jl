@@ -27,6 +27,7 @@ function freq_time_trans(rao,#::DataFrameRow,
     ωe = spectrum["frequency"] 
     A = spectrum["amplitude"]    
     α = spectrum["phaseshift"]
+    k = spectrum["wavenumber"]
 
 
     ## Create a FESpace for derivatives
@@ -70,7 +71,7 @@ function freq_time_trans(rao,#::DataFrameRow,
     α_mat = exp.(im*α)
     α_mat = repeat(α_mat, 1, size(ηdof_intp,2))
 
-    ηdof_act = ηdof_intp .* A_mat .* α_mat    
+    ηdof_act = ηdof_intp .* A_mat .* α_mat      
     
     ti = collect(0:dt:tEnd)    
     nTSteps = length(ti)
@@ -98,6 +99,21 @@ function freq_time_trans(rao,#::DataFrameRow,
         length(prb_xy))
     ηx_real_time = zeros(Float64, size(ηdof_time,1), 
         length(prb_xy))
+
+
+    # Wave elvation x=0
+    κ_prbx = 0.0 
+    κ_act = A .* exp.( k * κ_prbx .+  im*α  )  
+    κ_time = phMat * κ_act
+    κ_time_prb1 = real.(κ_time)
+
+    # Wave elvation x=600 (550+50)
+    κ_prbx = 600.0 
+    κ_act = A .* exp.( im * k * κ_prbx .+  im*α  )  
+    κ_time = phMat * κ_act
+    κ_time_prb2 = real.(κ_time)
+
+
     
     tick()
     # Method 4: Error Wrong cache
@@ -146,15 +162,18 @@ function freq_time_trans(rao,#::DataFrameRow,
     #     plot!(plt1, xem_cords, η_real_time[i,:],dpi=330)
     # end
 
-    save_df_theta = DataFrame(zeros(nTSteps,size(θ_time,2)+2), :auto)
+    save_df_theta = DataFrame(zeros(nTSteps,size(θ_time,2)+4), :auto)
     rename!(save_df_theta, :x1 => :h_b)
     rename!(save_df_theta, :x2 => :material)
     new_names = Symbol.("theta_x" .* string.(1:2:99))
     rename!(save_df_theta, names(save_df_theta)[3:size(θ_time,2)+2] .=> new_names)    
+    new_names = Symbol.("kappa_x" .* string.([0, 600]))
+    rename!(save_df_theta, names(save_df_theta)[end-1:end] .=> new_names)    
 
     save_df_theta[!,"h_b"] .= rao["h_b"]
     save_df_theta[!,"material" ] .= rao["material"]
-    save_df_theta[!,3:end] = θ_time
+    save_df_theta[!,3:end-2] = θ_time    
+    save_df_theta[!,end-1:end] = hcat(κ_time_prb1, κ_time_prb2)    
 
         
     # filename = "time_res_mat_" * rao.material *
