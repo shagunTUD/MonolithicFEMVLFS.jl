@@ -2,13 +2,14 @@ module BeamMultJoints_freq
 
 using Revise
 using Gridap
+using Gridap.CellData
 using Plots
 using DrWatson
 using WaveSpec
 using .Constants
 
 
-name::String = "data/sims_202403/run/mono_freq_free"
+name::String = "data/sims_202503/run/mono_freq_free"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -226,6 +227,17 @@ X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
 Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 
 
+# Testing diracDelta
+# ffff(x) = -1
+# ffff_cf = CellField(ffff,Ω)
+# δ_p = DiracDelta(model, Point(90.0,0.0) )
+δΩ_p = DiracDelta(Ω, Point(110.0,0.0) )
+δ_p = DiracDelta(Γ, [Point(90.0,0.0), Point(85.0,0.0)] )
+# δ_p = DiracDelta(Γm, tags=["mem_bnd"])
+# @show δ_p = DiracDelta{0}(model,tags="mem_bnd")
+# @show δ_p = DiracDelta{0}(Ω,tags="mem_bnd")
+@show propertynames(δ_p)
+
 # Weak form
 ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
 if(diriFlag)
@@ -255,7 +267,8 @@ else
     #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
 end
 
-l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
+l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1 + 
+              -5*δ_p(v) #+ 1*δΩ_p(w)*ω*ω
 
 
 # Solution
