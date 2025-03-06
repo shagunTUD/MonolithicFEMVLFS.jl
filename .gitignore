@@ -35,3 +35,5 @@ Manifest.toml
 # Folders
 output/
 sims_*/
+sims_*.zip
+data/fpv_*
