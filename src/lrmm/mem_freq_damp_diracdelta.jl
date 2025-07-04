@@ -267,8 +267,8 @@ else
     #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
 end
 
-l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1 + 
-              -5*δ_p(v) #+ 1*δΩ_p(w)*ω*ω
+l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1 #+ 
+              #-5*δ_p(v) #+ 1*δΩ_p(w)*ω*ω
 
 
 # Solution
