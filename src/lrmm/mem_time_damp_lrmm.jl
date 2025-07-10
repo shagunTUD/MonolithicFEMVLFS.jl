@@ -291,8 +291,7 @@ op = TransientLinearFEOperator( (a, c, m), l, X, Y; constant_forms )
 
 ls = LUSolver()
 # ode_solver = Newmark(ls,Δt,γₜ,βₜ)
-ode_solver = GeneralizedAlpha2(ls, Δt, 1.0)
-# Equivalent to Newmark with γₜ = 0.5, βₜ = 0.25
+ode_solver = GeneralizedAlpha2(ls, Δt, 0.0)
 
 # Initial solution
 u0 = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
