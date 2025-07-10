@@ -3,6 +3,7 @@ module BeamMultJoints_freq
 using Revise
 using Gridap
 using Gridap.ODEs
+using Gridap.CellData
 using Printf
 using Plots
 using DrWatson
@@ -12,7 +13,7 @@ using .WaveTimeSeries
 using WriteVTK
 
 
-name::String = "data/sims_202506/run/mono_time"
+name::String = "data/sims_202506/run/mono_time_lrmm"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -27,6 +28,12 @@ H0 = 10 #m #still-water depth
 @show Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
 @show τ = 0.0#damping coeff
 diriFlag = false
+
+# Resonator properties
+rM = 1.0e3 #Kg
+rK = 5.9e3 #N/m
+println("Resonator Natural Frequency: ω1 = ", sqrt(rK/rM), "rad/s")
+println()
 
 # Wave parameters
 ω = 2.4#3.45#2.0#2.4
@@ -81,7 +88,7 @@ println()
 t₀ = 0.0
 Δt = T/40
 outΔt = T/4
-tf = 15*T
+tf = 30*T
 ∂uₜ_∂u = γₜ/(βₜ*Δt)
 ∂uₜₜ_∂u = 1/(βₜ*Δt^2)
 
@@ -237,8 +244,22 @@ if(diriFlag)
 else
   U_Γη = TransientTrialFESpace(V_Γη)
 end
-X = TransientMultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
-Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
+
+
+V_Γq = ConstantFESpace(Ω, vector_type=Vector{Float64}, 
+  field_type=VectorValue{1,Float64})
+U_Γq = TransientTrialFESpace(V_Γq)
+î1 = VectorValue(1.0)
+
+X = TransientMultiFieldFESpace([U_Ω, U_Γκ, U_Γη, U_Γq])
+Y = MultiFieldFESpace([V_Ω, V_Γκ, V_Γη, V_Γq])
+
+# X = TransientMultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
+# Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
+
+δ_p = DiracDelta(Γ,[Point(30.0, 0.0)])
+
+@show cnstFEArea = sum(∫(1)dΩ)
 
 
 # Weak form
@@ -260,23 +281,27 @@ if(diriFlag)
     ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
 
 else
-  m(t,(ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
-  c(t,(ϕₜ,κₜ,ηₜ),(w,u,v)) = 
+  m(t,(ϕₜₜ,κₜₜ,ηₜₜ,qₜₜ),(w,u,v,ξ)) = 
+    ∫( mᵨ*v*ηₜₜ )dΓm + 
+    ∫( rM/cnstFEArea*(qₜₜ⋅ξ) )dΩ
+  c(t,(ϕₜ,κₜ,ηₜ,qₜ),(w,u,v,ξ)) = 
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
     ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm #+
     # ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
-  a(t,(ϕ,κ,η),(w,u,v)) =      
+  a(t,(ϕ,κ,η,q),(w,u,v,ξ)) =      
     ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
     ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
     ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2  +
-    ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm #+ 
+    ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm + 
     # ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
+    -rK/ρw*δ_p( v*( q⋅î1 - η ) ) +
+    ∫( rK/cnstFEArea*(ξ⋅q) )dΩ - rK*δ_p((ξ⋅î1)*η)
 end
 
-l(t,(w,u,v)) =  
+l(t,(w,u,v,ξ)) =  
   ∫( w*vᵢₙ(t) )dΓin - 
   ∫( ηd(t)*w - ∇ₙϕd(t)*(u + αₕ*w) )dΓd1
 
@@ -291,12 +316,13 @@ op = TransientLinearFEOperator( (a, c, m), l, X, Y; constant_forms )
 
 ls = LUSolver()
 # ode_solver = Newmark(ls,Δt,γₜ,βₜ)
-ode_solver = GeneralizedAlpha2(ls, Δt, 0.0)
+ode_solver = GeneralizedAlpha2(ls, Δt, 1.0)
+# Equivalent to Newmark with γₜ = 0.5, βₜ = 0.25
 
 # Initial solution
-u0 = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
-u0t = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
-u0tt = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
+u0 = interpolate_everywhere([0.0,0.0,0.0,0.0],X(0.0))
+u0t = interpolate_everywhere([0.0,0.0,0.0,0.0],X(0.0))
+u0tt = interpolate_everywhere([0.0,0.0,0.0,0.0],X(0.0))
 
 uht = solve(ode_solver, op, t₀, tf, (u0,u0t,u0tt))
 
@@ -309,10 +335,10 @@ end
 if vtk_output == true
   tpr = @sprintf("%5.3f",t₀)                    
   tval = @sprintf("%d",round(Int64,t₀*1000))
-  ϕₕ, κₕ, ηₕ = u0
+  ϕₕ, κₕ, ηₕ, qₕ = u0
   pvd_Ω[t₀] = createvtk(Ω,
     filename * "_O_sol" * "_$tval.vtu",
-    cellfields = ["phi" => ϕₕ])
+    cellfields = ["phi" => ϕₕ, "q"=> qₕ])
   pvd_Γκ[t₀] = createvtk(Γκ,
     filename * "_Gk_sol" * "_$tval.vtu",
     cellfields = ["kappa" => κₕ])
@@ -326,7 +352,7 @@ end
 @show outMod = round(Int64,outΔt/Δt);
 
 for (t,uh) in uht  
-    ϕₕ, κₕ, ηₕ = uh
+    ϕₕ, κₕ, ηₕ, qₕ = uh
     tpr = @sprintf("%5.3f",t)                    
     tval = @sprintf("%d",round(Int64,t*1000))
 
@@ -340,7 +366,7 @@ for (t,uh) in uht
     if vtk_output == true
       pvd_Ω[t] = createvtk(Ω,
         filename * "_O_sol" * "_$tval.vtu",
-        cellfields = ["phi" => ϕₕ])
+        cellfields = ["phi" => ϕₕ, "q"=> qₕ])
       pvd_Γκ[t] = createvtk(Γκ,
         filename * "_Gk_sol" * "_$tval.vtu",
         cellfields = ["kappa" => κₕ])
