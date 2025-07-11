@@ -259,7 +259,7 @@ Y = MultiFieldFESpace([V_Ω, V_Γκ, V_Γη, V_Γq])
 
 δ_p = DiracDelta(Γ,[Point(30.0, 0.0)])
 
-@show cnstFEArea = sum(∫(1)dΩ)
+# @show cnstFEArea = sum(∫(1)dΩ)
 
 
 # Weak form
@@ -283,7 +283,8 @@ if(diriFlag)
 else
   m(t,(ϕₜₜ,κₜₜ,ηₜₜ,qₜₜ),(w,u,v,ξ)) = 
     ∫( mᵨ*v*ηₜₜ )dΓm + 
-    ∫( rM/cnstFEArea*(qₜₜ⋅ξ) )dΩ
+    # ∫( rM/cnstFEArea*(qₜₜ⋅ξ) )dΩ
+    rM*δ_p(qₜₜ⋅ξ) 
   c(t,(ϕₜ,κₜ,ηₜ,qₜ),(w,u,v,ξ)) = 
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
@@ -298,7 +299,8 @@ else
     ∫(  v*(g*η) + Tᵨ*∇(v)⋅∇(η) )dΓm + 
     # ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
     -rK/ρw*δ_p( v*( q⋅î1 - η ) ) +
-    ∫( rK/cnstFEArea*(ξ⋅q) )dΩ - rK*δ_p((ξ⋅î1)*η)
+    # ∫( rK/cnstFEArea*(ξ⋅q) )dΩ +
+    rK*δ_p(ξ⋅q - (ξ⋅î1)*η) 
 end
 
 l(t,(w,u,v,ξ)) =  

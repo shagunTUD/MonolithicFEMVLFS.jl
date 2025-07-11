@@ -282,10 +282,12 @@ else
     #   - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
       - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  +    
-    -rK/ρw*δ_p( v*( (q⋅î1) - η ) ) +
-    ∫( -rM/cnstFEArea*ω^2*(q⋅ξ) + rK/cnstFEArea*(ξ⋅q) )dΩ +
-    -rK*δ_p((ξ⋅î1)*η)
     #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
+    -rK/ρw*δ_p( v*( (q⋅î1) - η ) ) +    
+    ∫( (ξ⋅q)* 0.0 )dΩ + 
+    # ∫( -rM/cnstFEArea*ω^2*(q⋅ξ) + rK/cnstFEArea*(ξ⋅q) )dΩ +
+    -rM*ω^2*δ_p(q⋅ξ) +
+    +rK*δ_p(q⋅ξ - (ξ⋅î1)*η)    
 end
 
 # l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1 + 
