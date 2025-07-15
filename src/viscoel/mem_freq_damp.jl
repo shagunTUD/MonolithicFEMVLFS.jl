@@ -8,7 +8,7 @@ using WaveSpec
 using .Constants
 
 
-name::String = "data/sims_202403/run/mono_freq_free"
+name::String = "data/sims_202506/run/mono_freq_free"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"

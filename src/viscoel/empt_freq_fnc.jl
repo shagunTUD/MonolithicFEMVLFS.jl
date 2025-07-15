@@ -54,6 +54,15 @@ function run_freq(ω, η₀, α)
   op = AffineFEOperator(a,l,X,Y)
   (ϕₕ,κₕ) = solve(op)
 
+  if vtk_output == true
+    writevtk(Ω,filename * "_O_sol.vtu",
+      cellfields = ["phi_re" => real(ϕₕ),"phi_im" => imag(ϕₕ),
+      "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ)])
+    writevtk(Γκ,filename * "_Gk_sol.vtu",
+      cellfields = ["eta_re" => real(κₕ),"eta_im" => imag(κₕ),
+      "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ)])
+  end
+
   # Because unable to do interpolation on κₕ
   prb_κ = im*ω/g*ϕₕ(prbxy)     
 
@@ -66,7 +75,7 @@ function run_freq(ω, η₀, α)
 end
 
 
-name::String = "data/sims_202303/empt_freq_spec"
+name::String = "data/sims_202506/empt_freq_spec"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"

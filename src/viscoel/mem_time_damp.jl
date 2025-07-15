@@ -2,6 +2,7 @@ module BeamMultJoints_freq
 
 using Revise
 using Gridap
+using Gridap.ODEs
 using Printf
 using Plots
 using DrWatson
@@ -11,7 +12,7 @@ using .WaveTimeSeries
 using WriteVTK
 
 
-name::String = "data/sims_202306/run/mono_time"
+name::String = "data/sims_202506/run/mono_time"
 order::Int = 2
 vtk_output::Bool = true
 filename = name*"/mem"
@@ -24,7 +25,7 @@ H0 = 10 #m #still-water depth
 @show g #defined in .Constants
 @show mᵨ = 0.9 #mass per unit area of membrane / ρw
 @show Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
-@show τ = 0.25#damping coeff
+@show τ = 0.0#damping coeff
 diriFlag = false
 
 # Wave parameters
@@ -243,14 +244,14 @@ Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
 # Weak form
 ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
 if(diriFlag)
-  m((ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
-  c((ϕₜ,κₜ,ηₜ),(w,u,v)) = 
+  m(t,(ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
+  c(t,(ϕₜ,κₜ,ηₜ),(w,u,v)) = 
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
     ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm +
     ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
-  a((ϕ,κ,η),(w,u,v)) =      
+  a(t,(ϕ,κ,η),(w,u,v)) =      
     ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
     ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
@@ -259,14 +260,14 @@ if(diriFlag)
     ∫(- Tᵨ*v*∇(η)⋅nΛmb )dΛmb
 
 else
-  m((ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
-  c((ϕₜ,κₜ,ηₜ),(w,u,v)) = 
+  m(t,(ϕₜₜ,κₜₜ,ηₜₜ),(w,u,v)) = ∫( mᵨ*v*ηₜₜ )dΓm
+  c(t,(ϕₜ,κₜ,ηₜ),(w,u,v)) = 
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓfs +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd1    +
     ∫(  βₕ*(u + αₕ*w)*ϕₜ - w*κₜ )dΓd2    +
     ∫(  v*ϕₜ - w*ηₜ + Tᵨ*τ*∇(v)⋅∇(ηₜ) )dΓm #+
     # ∫(- Tᵨ*τ*v*∇(ηₜ)⋅nΛmb )dΛmb
-  a((ϕ,κ,η),(w,u,v)) =      
+  a(t,(ϕ,κ,η),(w,u,v)) =      
     ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
     ∫(  βₕ*(u + αₕ*w)*g*κ )dΓfs   +
     ∫(  βₕ*(u + αₕ*w)*g*κ - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1  +
@@ -281,16 +282,24 @@ l(t,(w,u,v)) =
 
 
 # Solution
-op = TransientConstantMatrixFEOperator(m,c,a,l,X,Y)
+# op = TransientConstantMatrixFEOperator(m,c,a,l,X,Y)
+constant_mass = true
+constant_damping = true
+constant_stiffness = true 
+constant_forms = (constant_stiffness, constant_damping, constant_mass)
+op = TransientLinearFEOperator( (a, c, m), l, X, Y; constant_forms )
+
 ls = LUSolver()
-ode_solver = Newmark(ls,Δt,γₜ,βₜ)
+# ode_solver = Newmark(ls,Δt,γₜ,βₜ)
+ode_solver = GeneralizedAlpha2(ls, Δt, 1.0)
+# Equivalent to Newmark with γₜ = 0.5, βₜ = 0.25
 
 # Initial solution
 u0 = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
 u0t = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
 u0tt = interpolate_everywhere([0.0,0.0,0.0],X(0.0))
 
-uht = solve(ode_solver,op,(u0,u0t,u0tt),t₀,tf)
+uht = solve(ode_solver, op, t₀, tf, (u0,u0t,u0tt))
 
 if vtk_output == true
   pvd_Ω = paraview_collection(filename * "_O_sol", append=false)
@@ -317,7 +326,7 @@ end
 # Execute
 @show outMod = round(Int64,outΔt/Δt);
 
-for (uh, t) in uht  
+for (t,uh) in uht  
     ϕₕ, κₕ, ηₕ = uh
     tpr = @sprintf("%5.3f",t)                    
     tval = @sprintf("%d",round(Int64,t*1000))
