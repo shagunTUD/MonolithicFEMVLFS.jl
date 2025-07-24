@@ -28,7 +28,9 @@ diriFlag = false
 # Resonator properties
 rM = 1.0e3 #Kg
 rK = 5.9e3 #N/m
+rC = 0.0#0.053*rK #N/m/s
 println("Resonator Natural Frequency: ω1 = ", sqrt(rK/rM), "rad/s")
+println("Resonator Mass, Stiffness, Damping: \n", rM, "\n", rK, "\n", rC)
 println()
 
 # Wave parameters
@@ -283,11 +285,11 @@ else
     ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
       - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  +    
     #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb #diri
-    -rK/ρw*δ_p( v*( (q⋅î1) - η ) ) +    
+    (+im*ω*rC -rK)/ρw*δ_p( v*( (q⋅î1) - η ) ) +    
     ∫( (ξ⋅q)* 0.0 )dΩ + 
     # ∫( -rM/cnstFEArea*ω^2*(q⋅ξ) + rK/cnstFEArea*(ξ⋅q) )dΩ +
     -rM*ω^2*δ_p(q⋅ξ) +
-    +rK*δ_p(q⋅ξ - (ξ⋅î1)*η)    
+    (-im*ω*rC + rK)*δ_p(q⋅ξ - (ξ⋅î1)*η)    
 end
 
 # l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1 + 
@@ -301,8 +303,6 @@ l((w,u,v,ξ)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )
 op = AffineFEOperator(a,l,X,Y)
 (ϕₕ,κₕ,ηₕ,qₕ) = solve(op)
 xΓκ = get_cell_coordinates(Γκ)
-
-@show qₕ(Point(90.0,0.0))
 
 # Generating input waves on FS
 xΓη = get_cell_coordinates(Γη)
@@ -347,6 +347,11 @@ end
 Pd = sum(∫( abs(ηx)*abs(ηx) )dΓm)
 Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
 
+@show q_res = qₕ(Point(90.0,0.0))⋅î1
+@show η_res = ηₕ(Point(90.0,0.0))
+
+Pd_r = 0.5*rC*ω*ω* (abs(q_res - η_res))^2
+
 # Wave energy flux
 ηrf = abs(κr(Point(60.0,0.0)))
 ηtr = abs(κₕ(Point(120.0,0.0)))
@@ -360,7 +365,8 @@ println("Power In \t ",Pin," W/m")
 println("Power Ref \t ",Prf," W/m")
 println("Power Trans \t ",Ptr," W/m")
 println("Power Abs \t ",Pd," W/m")
-println("Error \t ",Pin - Prf - Ptr - Pd," W/m")
+println("Power Abs Resonator \t ",Pd_r," W")
+println("Error \t ",Pin - Prf - Ptr - Pd - Pd_r," W/m")
 
 
 data = Dict("ϕₕ" => ϕₕ,
