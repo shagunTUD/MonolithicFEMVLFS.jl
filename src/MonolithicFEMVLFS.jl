@@ -19,6 +19,9 @@ include("Khabakhpasheva_time_domain.jl")
 include("Liu.jl")
 include("Yago_freq_domain.jl")
 include("Multi_geo_freq_domain.jl")
+include("lrmm/Resonator.jl")
+
+using .Resonator
 
 using .Periodic_Beam: Periodic_Beam_params, run_periodic_beam
 using .Periodic_Beam_FS: Periodic_Beam_FS_params, run_periodic_beam_FS

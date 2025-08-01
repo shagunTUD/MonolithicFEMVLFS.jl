@@ -1,6 +1,5 @@
 module Memb2D
 
-using Revise
 using Gridap
 using Plots
 using DrWatson
@@ -11,6 +10,13 @@ using DataFrames:DataFrame
 using DataFrames:Matrix
 using TickTock
 using Parameters
+using Printf
+using MonolithicFEMVLFS.Resonator
+
+
+function powerDissipatedResonator(ω, resonator, q, η)
+  return 0.5*resonator.C*ω*ω* (abs(q - η))^2
+end
 
 
 function main(params)
@@ -50,24 +56,40 @@ function main(params)
 
     # Weak form
     ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
-    a((ϕ,κ,η),(w,u,v)) =      
-      ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
-      ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
-      ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-        - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
-      ∫( -w * im * k * ϕ )dΓot +
-      # ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
-      #   - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
-      ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
-        - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
-      #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
+
+    function a(trialVars, testVars)
+      (ϕ,κ,η,q...) = trialVars
+      (w,u,v,ξ...) = testVars
+
+      val = ∫(  ∇(w)⋅∇(ϕ) )dΩ   +
+        ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ )dΓfs   +
+        ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+          - μ₂ᵢₙ*κ*w + μ₁ᵢₙ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd1    +
+        ∫( -w * im * k * ϕ )dΓot +
+        # ∫(  βₕ*(u + αₕ*w)*(g*κ - im*ω*ϕ) + im*ω*w*κ 
+        #   - μ₂ₒᵤₜ*κ*w + μ₁ₒᵤₜ*∇ₙ(ϕ)*(u + αₕ*w) )dΓd2    +
+        ∫(  v*(g*η - im*ω*ϕ) +  im*ω*w*η
+          - mᵨ*v*ω^2*η + Tᵨ*(1-im*ω*τ)*∇(v)⋅∇(η) )dΓm  #+ 
+        #∫(- Tᵨ*(1-im*ω*τ)*v*∇(η)⋅nΛmb )dΛmb
+
+      for (qi, ξi, δi, rSi) in zip(q, ξ, δ_p_Arr, rS)
+        val += 
+          (+im*ω*rSi.C -rSi.K)/ρw*δi( v*( (qi⋅î1) - η ) ) +    
+          ∫( (ξi⋅qi)* 0.0 )dΩ + 
+          # ∫( -rM/cnstFEArea*ω^2*(q⋅ξ) + rK/cnstFEArea*(ξ⋅q) )dΩ +
+          -rSi.M*ω^2*δi(qi⋅ξi) +
+          (-im*ω*rSi.C + rSi.K)*δi(qi⋅ξi - (ξi⋅î1)*η)    
+      end
+
+      return val
+    end
 
     l((w,u,v)) =  ∫( w*vxᵢₙ )dΓin - ∫( ηd*w - ∇ₙϕd*(u + αₕ*w) )dΓd1
 
 
     # Solution
     op = AffineFEOperator(a,l,X,Y)
-    (ϕₕ,κₕ,ηₕ) = solve(op)
+    (ϕₕ, κₕ, ηₕ, qₕ...) = solve(op)
 
     # Function for inlet phase
     κin = interpolate_everywhere(ηᵢₙ, 
@@ -77,7 +99,14 @@ function main(params)
     # Energy flux (Power) calculation
     ηx = ∇(ηₕ)⋅VectorValue(1.0,0.0)
     Pd = sum(∫( abs(ηx)*abs(ηx) )dΓm)
-    Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd
+    Pd = 0.5*Tᵨ*ρw*τ*ω*ω*Pd    
+
+    Pd_r = [ 
+      powerDissipatedResonator(ω, rSi, qi(rSi.XZ)⋅î1, ηₕ(rSi.XZ)) 
+      for (rSi, qi) in zip(rS, qₕ)
+    ]
+    # Pd_r = [0.0, 0.0]
+    
 
     # Wave energy flux
     ηrf = abs(κr(Point(prbPowx[1],0.0)))
@@ -87,12 +116,13 @@ function main(params)
     Pin = (0.5*ρw*g*η₀*η₀)*(ω/k)*wave_n
     Prf = (0.5*ρw*g*ηrf*ηrf)*(ω/k)*wave_n
     Ptr = (0.5*ρw*g*ηtr*ηtr)*(ω/k)*wave_n
-    PErr = Pin - Prf - Ptr - Pd
+    PErr = Pin - Prf - Ptr - Pd - sum( Pd_r )
     println("Power In \t ",Pin,"  W/m")
     println("Power Ref \t ",Prf," W/m")
     println("Power Trans \t ",Ptr," W/m")
     println("Power Abs \t ",Pd," W/m")
-    println("Error \t ",PErr," W/m")
+    println("Power Abs Resonator \t ",Pd_r," W")
+    println("Error \t ",PErr," W/m")    
 
     # Interpolation on prboes
     prb_κ = zeros(ComplexF64, 1, length(prbxy))
@@ -111,11 +141,49 @@ function main(params)
     push!(prbDaΓη, ηₕ(prxΓη))
     push!(prbDaΓκ, κₕ(prxΓκ))
 
-    push!(prbPow, [Pin, Prf, Ptr, Pd, PErr, 0.0])
+    push!(prbPow, [Pin, Prf, Ptr, Pd, PErr, 0.0, Pd_r...])
+
+    # VTK Output
+    # ---------------------Start---------------------
+    if vtk_output == true
+      
+      freqName = filename*"_omg_" * @sprintf("%.3f", ω)
+
+      mkpath(freqName)
+
+      writevtk(Ω, freqName * "/mem_O_sol.vtu",
+        cellfields = ["phi_re" => real(ϕₕ),"phi_im" => imag(ϕₕ),
+        "phi_abs" => abs(ϕₕ), "phi_ang" => angle∘(ϕₕ)])
+
+      
+      writevtk(Γη, freqName * "/mem_R_sol.vtu",
+        cellfields = vcat(
+          [ "q$i" => real(qhi⋅î1)*VectorValue(1.0,0.0) + imag(qhi⋅î1)*VectorValue(0.0,1.0)
+            for (i, qhi) in enumerate(qₕ) ],
+          [ "q$i"*"_XZ" => rSi.XZ 
+            for (i, rSi) in enumerate(rS) ],
+          [ "q$i"*"_MKC" => VectorValue(rSi.M,rSi.K,rSi.C)
+            for (i, rSi) in enumerate(rS) ]
+        ) )
+      
+
+      writevtk(Γκ, freqName * "/mem_Gk_sol.vtu",
+        cellfields = ["eta_re" => real(κₕ),"eta_im" => imag(κₕ),
+        "eta_abs" => abs(κₕ), "eta_ang" => angle∘(κₕ),
+        "etaR_re" => real(κr),"etaR_im" => imag(κr),
+        "etaR_abs" => abs(κr), "etaR_ang" => angle∘(κr),
+        "ηin_abs" => abs(κin), "ηin_ang" => angle∘(κin)])
+
+      writevtk(Γη, freqName * "/mem_Ge_sol.vtu",
+        cellfields = ["eta_re" => real(ηₕ),"eta_im" => imag(ηₕ),
+        "eta_abs" => abs(ηₕ), "eta_ang" => angle∘(ηₕ)])
+    end
+    # ----------------------End----------------------
     
     tock()
     return 0
   end
+  
 
 
   @unpack name, order, vtk_output = params
@@ -175,6 +243,7 @@ function main(params)
 
 
   # Mesh
+  # ---------------------Start---------------------
   function f_y(y, r, n, H0; dbgmsg = false)
     # Mesh along depth as a GP
     # Depth is 0 to -H0    
@@ -197,6 +266,7 @@ function main(params)
   end
   map(x) = VectorValue( x[1], f_y(x[2], mesh_ry, ny, H0; dbgmsg=false) )
   model = CartesianDiscreteModel(domain,partition,map=map)
+  # ----------------------End----------------------
 
 
   # Labelling
@@ -303,8 +373,26 @@ function main(params)
   U_Γκ = TrialFESpace(V_Γκ)
   # U_Γη = TrialFESpace(V_Γη, gη)
   U_Γη = TrialFESpace(V_Γη)
-  X = MultiFieldFESpace([U_Ω,U_Γκ,U_Γη])
-  Y = MultiFieldFESpace([V_Ω,V_Γκ,V_Γη])
+
+
+  # Resonator FE Spaces
+  # ---------------------Start---------------------
+  @unpack rS = params
+
+  [@show rSi, rSi.XZ for rSi in rS]
+
+  V_Γq_Arr = [ ConstantFESpace( Ω, 
+    vector_type=Vector{ComplexF64}, 
+    field_type=VectorValue{1,ComplexF64} ) 
+    for irS in rS ]
+  U_Γq_Arr = [ TrialFESpace(iV_Γq) for iV_Γq in V_Γq_Arr ]
+  î1 = VectorValue(1.0)
+
+  δ_p_Arr = [ DiracDelta(Γ, irS.XZ) for irS in rS ]
+  # ----------------------End----------------------
+
+  X = MultiFieldFESpace([U_Ω, U_Γκ, U_Γη, U_Γq_Arr...])
+  Y = MultiFieldFESpace([V_Ω, V_Γκ, V_Γη, V_Γq_Arr...])
 
   # Probes
   @unpack prbx, prbPowx = params
@@ -340,37 +428,83 @@ function main(params)
   lDa = zeros(ComplexF64, 1, length(prxΓκ))
   prbDaΓκ = DataFrame(lDa, :auto)
 
-  prbPow = DataFrame(zeros(Float64, 1, 6), :auto)
+  prbPow = DataFrame(zeros(Float64, 1, 6+length(rS)), :auto)
+
+
+  # Remove old vtk files  
+  for entry in readdir(name)
+    if startswith(entry, "mem_omg")
+      rm(joinpath(name, entry); force=true, recursive=true)
+    end
+  end    
 
   # Run weak-form for each freq
+  # ---------------------Start---------------------
   run_freq.(ω, η₀, α)
+  # ----------------------End----------------------
 
-  @show prbDa = prbDa[2:end, :]
+  prbDa = prbDa[2:end, :]
   prbDa_x = prbDa_x[2:end, :]
   prbDaΓη = prbDaΓη[2:end,:]
   prbDaΓκ = prbDaΓκ[2:end,:]
-  prbPow = prbPow[2:end,:]
+  @show prbPow = prbPow[2:end,:]
 
   k = dispersionRelAng.(H0, ω; msg=false)
 
-  for lprb in 1:length(prbxy)
-    plt1 = plot(k*H0, abs.(prbDa[:,lprb]), linewidth=3, 
-      xlabel = "kh",
+
+  # Plotting 
+  # ---------------------Start---------------------
+  if isdir(filename*"_plots")
+    rm(filename*"_plots"; force=true, recursive=true)
+  end
+  mkpath(filename*"_plots")  
+
+  plt1 = plot(ω, prbPow[:,2]./prbPow[:,1], linewidth=3, 
+    xlabel = "ω (rad/s)",
+    ylabel = "K_R",
+    title = "Reflection coefficient",
+    ylims = (0,1.0))
+
+  plt2 = plot(ω, prbPow[:,3]./prbPow[:,1], linewidth=3, 
+    xlabel = "ω (rad/s)",
+    ylabel = "K_T",
+    title = "Transmission coefficient",
+    ylims = (0,1.0))
+
+  plt3 = plot(ω, prbPow[:,4]./prbPow[:,1], linewidth=3, 
+    xlabel = "ω (rad/s)",
+    ylabel = "K_A",
+    title = "Absorption coefficient",
+    ylims = (0,1.0))
+
+  plt4 = plot(ω, 100 * prbPow[:,5]./prbPow[:,1], linewidth=3, 
+    xlabel = "ω (rad/s)",
+    ylabel = "Error %",
+    title = "Power Relative Error")
+
+  pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
+    plot_title = "Power Balance")
+  savefig(pltAll,filename*"_plots/mem_powerBalance"*".png")
+
+  for lprb in 1:length(prbxy)    
+
+    plt1 = plot(ω, abs.(prbDa[:,lprb]), linewidth=3, 
+      xlabel = "ω (rad/s)",
       ylabel = "A (m)",
       title = "Amplitude")  
 
-    plt2 = plot(k*H0, abs.(prbDa_x[:,lprb]), linewidth=3, 
-      xlabel = "kh",
+    plt2 = plot(ω, abs.(prbDa_x[:,lprb]), linewidth=3, 
+      xlabel = "ω (rad/s)",
       ylabel = "dA/dx",
       title = "Slope Magnitude")
     
-    plt3 = plot(k*H0, angle.(prbDa[:,lprb]), linewidth=3, 
-      xlabel = "kh",
+    plt3 = plot(ω, angle.(prbDa[:,lprb]), linewidth=3, 
+      xlabel = "ω (rad/s)",
       ylabel = "α (rad)",
       title = "Phase")  
 
-    plt4 = plot(k*H0, angle.(prbDa_x[:,lprb]), linewidth=3, 
-      xlabel = "kh",
+    plt4 = plot(ω, angle.(prbDa_x[:,lprb]), linewidth=3, 
+      xlabel = "ω (rad/s)",
       ylabel = "α (rad)",
       title = "Slope Phase")
     
@@ -378,8 +512,9 @@ function main(params)
     pltAll = plot(plt1, plt2, plt3, plt4, layout=4, dpi=330,
       plot_title = "x = $xloc")
 
-    savefig(pltAll,filename*"_dxPrb_$lprb"*".png")
+    savefig(pltAll,filename*"_plots/mem_dxPrb_$lprb"*".png")
   end  
+  # ----------------------End----------------------
 
   data = Dict("ω" => ω,
               "η₀" => η₀,
@@ -391,7 +526,8 @@ function main(params)
               "prxΓη" => prxΓη,
               "prbDaΓκ" => prbDaΓκ,
               "prbDaΓη" => prbDaΓη,
-              "prbPow" => prbPow)
+              "prbPow" => prbPow,
+              "rS" => rS )
 
   wsave(filename*"_data.jld2", data)
 
@@ -446,6 +582,17 @@ Parameters for the VIV.jl module.
   xm₀ = xdᵢₙ + 8*H0
   xm₁ = xm₀ + Lm
 
+
+  # Resonator parameters
+  rS = Resonator.Array1D(
+    1, 
+    1e3, 
+    5.9e3, 
+    0.0,
+    [Point(xm₀ + Lm/2.0,0.0)]
+  )
+
+
   # Probes
   prbx=[  -20.0, 0.0, 20.0, 40.0, 50.0, 
           52.7, 53.7, 55, 60.0, 80.0, 
@@ -482,8 +629,7 @@ end
   Wm = Lm  
   mᵨ = 0.9 #mass per unit area of membrane / ρw
   Tᵨ = 0.1/4*g*Lm*Lm #T/ρw
-  τ = 0.0#damping coeff
-
+  τ = 0.0#damping coeff  
 
   # Domain 
   nx = 1650
@@ -497,6 +643,15 @@ end
   xdᵢₙ = 0.0
   xm₀ = xdᵢₙ + 8*H0
   xm₁ = xm₀ + Lm
+
+  # Resonator parameters
+  rS = Resonator.Array1D(
+    1, 
+    1e3, 
+    5.9e3, 
+    0.0,
+    [Point(xm₀ + Lm/2.0,0.0)]
+  )
 
   # Probes
   prbx=[  -20.0, 0.0, 20.0, 40.0, 50.0, 
