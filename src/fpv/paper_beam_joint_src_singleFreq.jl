@@ -18,7 +18,7 @@ include(srcdir("fpv","materials.jl"))
 
 export run_beam
 
-  function run_beam(params::Dict)
+  function run_beam(params::Dict; vtk_output = false, filename="")
     @unpack length_beam, h_b, material, phase, omega, amplitude,mesh_size = params    
     @unpack numFloat = params
     @show h_b
@@ -335,12 +335,24 @@ export run_beam
     
       ## Sovler
       op = AffineFEOperator(a, l, X, Y)
-      ϕh , ηh, κh = Gridap.solve(op)                        
+      ϕh, ηh, κh = Gridap.solve(op)            
+      
+      if vtk_output == true
+        writevtk(Ω,filename * "_O_sol.vtu", order=2,
+          cellfields = ["phi_re" => real(ϕh),"phi_im" => imag(ϕh),
+          "phi_abs" => abs(ϕh), "phi_ang" => angle∘(ϕh)])
+        writevtk(Γκ,filename * "_Gk_sol.vtu", order=2,
+          cellfields = ["eta_re" => real(κh),"eta_im" => imag(κh),
+          "eta_abs" => abs(κh), "eta_ang" => angle∘(κh)])
+        writevtk(Γη,filename * "_Ge_sol.vtu", order=2,
+          cellfields = ["eta_re" => real(ηh),"eta_im" => imag(ηh),
+          "eta_abs" => abs(ηh), "eta_ang" => angle∘(ηh)])
+      end
       
       cache_η = Gridap.Arrays.return_cache(ηh, prb_xy)      
       push!(da_η, evaluate!(cache_η, ηh, prb_xy))          
       push!(da_wavePrb, κh.(prb_wave) )
-      push!(da_ηdof, get_free_dof_values(ηh))
+      push!(da_ηdof, get_free_dof_values(ηh))      
       
       
       tock()
@@ -360,48 +372,7 @@ export run_beam
     η_a = Matrix(abs.(da_η))
     η_ϕ = Matrix(angle.(da_η))
         
-    
-    # ## Empty Tank    
-    # function RAO(ηin_a, λin, η_a, ηx_a) 
-    
-    #   #expand the vectors to the size of length(ω),length(probx)
-    #   ηin_a_m = repeat(ηin_a,1,size(η_a)[2])
-    #   λin_m = repeat(λin,1,size(η_a)[2])      
-      
-    #   RAO_η = η_a ./ ηin_a_m
-    #   RAO_ηx = ηx_a ./ ((2*π) * ηin_a_m ./ λin_m)
-      
-    #   return RAO_η, RAO_ηx
-    # end
-    
-    # RAO_η, RAO_ηx = RAO(A_w, λ, η_a, ηx_a)
-
-    # return RAO_η, RAO_ηx, η_ϕ, ηx_ϕ 
-
-
-    # Not Empty tank    
-    function RAO_revised(λin, η_a, ηdof) 
-          
-      #expand the vectors to the size of length(ω),length(probx)
-      daRef = wload(datadir("fpv_202401","empt",
-        "Empt_length_beam=100_mesh_size=1.0.jld2"))
-      ηin_a_m = daRef["RAO_η"]      
-      λin_m = repeat(λin,1,size(η_a)[2])     
-      k_m = 2*π ./ λin_m            
-      
-      RAO_η = η_a ./ ηin_a_m
-      
-      ηin_a_avg = sum(ηin_a_m, dims=2) / size(ηin_a_m,2)
-      ηin_a_avg = repeat(ηin_a_avg, 1, size(ηdof,2))  
-      ηdof_scaled = ηdof ./ ηin_a_avg
-
-      return RAO_η, ηdof_scaled
-    end
-    
-    RAO_η, ηdof_scaled = RAO_revised(λ, η_a, ηdof)
-
-    return RAO_η, η_ϕ, da_wavePrb, ηdof_scaled,
-      EI_b, massPerArea
+    return 0
     
   end
 
