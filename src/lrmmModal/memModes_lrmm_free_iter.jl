@@ -88,7 +88,7 @@ function run_case( mfac, tfac, rS )
   Tᵨ = tfac *g*H0*H0 #T/ρw
 
   # Excitation wave parameters
-  ω = 1.0
+  ω = 1.0 + im*1.0
 
 
   # Domain 
@@ -285,10 +285,11 @@ function run_case( mfac, tfac, rS )
 
   #xp = range(xm₀, xm₁, size(V,2)+2)
 
+  αRelax = 0.8
   maxIter = 20
   nωₙ = 6
-  da_ωₙ = zeros(Float64, 1, nωₙ)
-  @show ωₙ=zeros(Float64, 1, nωₙ) .+ ω
+  da_ωₙ = zeros(ComplexF64, 1, nωₙ)
+  @show ωₙ=zeros(ComplexF64, 1, nωₙ) .+ ω
   da_V = []
 
   # # For index=1 not looping coz ωₙ[1] = 0.0
@@ -302,8 +303,8 @@ function run_case( mfac, tfac, rS )
     # global ωₙ, ω
     local V, lIter
     lIter = 0    
-    Δω = 1
-    ω = ωₙ[i]
+    Δω = 1 
+    ω = ωₙ[i]    
     while ((Δω > 1e-3) && (lIter < maxIter))
       # global ω, ωₙ
       
@@ -312,9 +313,10 @@ function run_case( mfac, tfac, rS )
       # ωₒ = ω      
       # ωᵣ = sqrt(rλ[i])
 
-      λ, V = run_freq(ω)
+      ωᵣ = real(ω)
+      λ, V = run_freq(ωᵣ)
       ωₒ = ω      
-      ωᵣ = real(sqrt(λ[i]))
+      ω = sqrt(λ[i])
 
       # if(i==1)
       #   #ω = 0.2 * ωₙ[i] + 0.8*ω
@@ -329,8 +331,8 @@ function run_case( mfac, tfac, rS )
       #   Δω = abs(ω - ωₒ)/ωₒ
       # end      
 
-      ω = 0.8 * ωᵣ + 0.2*ωₒ
-      Δω = abs(ω - ωₒ)/ωₒ
+      ω = αRelax * ω + (1 - αRelax) * ωₒ
+      Δω = abs((ω - ωₒ)/ωₒ)
       lIter += 1
       # @show ωₙ
       @show i, ω, Δω, lIter
@@ -362,7 +364,7 @@ mfac = [0.9]
 tfac = [0.1]
 
 resMᵨ = [1]
-resKᵨ = [3.0*3.0*0]
+resKᵨ = [2.1*2.1*1]
 
 for (iresMᵨ, iresKᵨ) in zip(resMᵨ, resKᵨ)  
 
