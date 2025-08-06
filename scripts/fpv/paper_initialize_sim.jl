@@ -50,14 +50,12 @@ allparams = Dict(
 dicts = dict_list(allparams)
 tick()
 
-## Empty Tank
+# ## Empty Tank
 # function makesim(d::Dict)    
-#     RAO_η, RAO_ηx, η_ϕ, ηx_ϕ = beam.run_beam(d)
+#     RAO_η, η_ϕ = beam.run_beam(d)
 #     fulld = copy(d)
 #     fulld["RAO_η"] = RAO_η
-#     fulld["RAO_ηx"] = RAO_ηx
 #     fulld["η_ϕ"] = η_ϕ
-#     fulld["ηx_ϕ"] = ηx_ϕ
 #     return fulld
 # end
 

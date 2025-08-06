@@ -350,21 +350,19 @@ export run_beam
         
     
     # ## Empty Tank    
-    # function RAO(ηin_a, λin, η_a, ηx_a) 
+    # function RAO(ηin_a, λin, η_a) 
     
     #   #expand the vectors to the size of length(ω),length(probx)
     #   ηin_a_m = repeat(ηin_a,1,size(η_a)[2])
     #   λin_m = repeat(λin,1,size(η_a)[2])      
       
     #   RAO_η = η_a ./ ηin_a_m
-    #   RAO_ηx = ηx_a ./ ((2*π) * ηin_a_m ./ λin_m)
-      
-    #   return RAO_η, RAO_ηx
+    #   return RAO_η
     # end
-    
-    # RAO_η, RAO_ηx = RAO(A_w, λ, η_a, ηx_a)
 
-    # return RAO_η, RAO_ηx, η_ϕ, ηx_ϕ 
+    # RAO_η = RAO(A_w, λ, η_a)
+
+    # return RAO_η, η_ϕ
 
 
     # Not Empty tank    
