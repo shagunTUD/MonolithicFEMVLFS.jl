@@ -61,24 +61,6 @@ tick()
 #     return fulld
 # end
 
-# ## Not Empty Tank
-# function makesim(d::Dict)    
-#     RAO_η, RAO_ηx, η_ϕ, ηx_ϕ, 
-#         RAO_ηxx, RAO_ηxxx, da_wavePrb, ηdof_scaled,
-#         EI, massPerArea = beam.run_beam(d)
-#     fulld = copy(d)
-#     fulld["RAO_η"] = RAO_η
-#     fulld["RAO_ηx"] = RAO_ηx
-#     fulld["RAO_ηxx"] = RAO_ηxx
-#     fulld["RAO_ηxxx"] = RAO_ηxxx
-#     fulld["η_ϕ"] = η_ϕ
-#     fulld["ηx_ϕ"] = ηx_ϕ
-#     fulld["EI"] = EI
-#     fulld["massPerArea"] = massPerArea    
-#     fulld["da_wavePrb"] = da_wavePrb
-#     fulld["ηdof"] = ηdof_scaled
-#     return fulld
-# end
 
 ## Not Empty Tank
 function makesim(d::Dict)    

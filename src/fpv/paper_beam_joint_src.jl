@@ -292,19 +292,7 @@ export run_beam
       αh_fs = -im*ω/g*(1-βh_fs)/βh_fs
 
       ## Weak form
-      ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)
-      
-      # Philipp
-      # a((ϕ,η,κ),(w,v,u)) =  ∫(  ∇(w)⋅∇(ϕ) )dΩ   +   
-      #   ∫(  (1im*ω*w*κ)  - μ₁*κ*w - μ₂*ϕ*w/g )dΓfs   +
-      #   ∫(  βh_fs*(u + αh_fs*w)*g*κ  +   βh_fs*(-1im*ω)*(u + αh_fs*w)*ϕ )dΓfs   +
-      #   ∫(  (-ω^2*α1_b + g)*v*η +  Δ(v)*(α2_b*Δ(η)) +  (-1im*ω*v*ϕ)   +   (1im*ω*w*η)  )dΓb   +
-      #   ∫(   - (jump(∇(v)⋅nΛb) * mean(α2_b*Δ(η))) - (mean(Δ(v)) * jump(α2_b*∇(η)⋅nΛb))  + 
-      #     γ_m/h*( jump(∇(v)⋅nΛb) * jump(α2_b*∇(η)⋅nΛb))  )dΛb +
-      #   ∫(  (1/ρ_w)*(jump(∇(v)⋅nΛj) * k_r * jump(∇(η)⋅nΛj)) )dΛj -
-      #   ∫(w * im * k * ϕ )dΓot      
-    
-      # l((w,v,u)) =            ∫( w*u_in )dΓin - ∫( w*ηd + w*ϕd/g )dΓfs
+      ∇ₙ(ϕ) = ∇(ϕ)⋅VectorValue(0.0,1.0)      
 
 
       # Weak form Beam Corrected
