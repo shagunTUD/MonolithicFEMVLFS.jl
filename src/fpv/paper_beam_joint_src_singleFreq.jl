@@ -149,8 +149,16 @@ export run_beam
     nx = round(Int, LΓ/mesh_size)
     # nz = 20
     # mesh_rz = 1.15
-    nz = 5
-    mesh_rz = 1.85
+    
+    ## Setting used in Alba (2025) Energy paper
+    ## Remember, that we are using order 4 elements
+    # nz = 5
+    # mesh_rz = 1.85
+
+    ## Setting used in Rieke (2025) Energy paper
+    nz = 12
+    mesh_rz = 1.1
+    
     @show partition = (nx,nz)
 
     # Mesh
