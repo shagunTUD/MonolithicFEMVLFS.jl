@@ -150,14 +150,16 @@ export run_beam
     # nz = 20
     # mesh_rz = 1.15
 
-    ## Setting used in Alba (2025) Energy paper
-    ## Remember, that we are using order 4 elements
+    @unpack nz, mesh_rz = params
+
+    # ## Setting used in Alba (2025) Energy paper
+    # ## Remember, that we are using order 4 elements
     # nz = 5
     # mesh_rz = 1.85
 
-    ## Setting used in Rieke (2025) Energy paper
-    nz = 12
-    mesh_rz = 1.1
+    # ## Setting used in Rieke (2025) Energy paper
+    # nz = 12
+    # mesh_rz = 1.1
 
     @show partition = (nx,nz)
 

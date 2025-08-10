@@ -34,19 +34,18 @@ allparams = Dict(
     "material" => ["hdpe"],
     "phase"=> [α],
     "omega" => [ω],
-    "depth" => [30],
-    "amplitude" => [A_w],    
+    "depth" => [22.8],
+    "amplitude" => [A_w],
     "numFloat" => [10],
-    
+
     "mesh_size" => [1.0],
-    "nz" => [5], #Remember, that we are using order 4 elements
-    "mesh_rz" => [1.85]
+    "nz" => [12], #Remember, that we are using order 4 elements
+    "mesh_rz" => [1.1]
 )
 
-# ## Setting used in Alba (2025) Energy paper
-# ## Remember, that we are using order 4 elements
-# nz = 5
-# mesh_rz = 1.85
+# ## Setting used in Rieke (2025) Energy paper
+# nz = 12
+# mesh_rz = 1.1
 
 #creates all possible combinations
 dicts = dict_list(allparams)
@@ -99,4 +98,3 @@ tock()
 
 
 
-1

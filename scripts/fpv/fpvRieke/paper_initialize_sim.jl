@@ -40,14 +40,18 @@ allparams = Dict(
     "material" => ["hdpe"],
     "phase"=> [α],
     "omega" => [ω],
-    "depth" => [30],
+    "depth" => [22.8],
     "amplitude" => [A_w],
     "numFloat" => [1,2,5,10,25,50],
 
     "mesh_size" => [1.0],
-    "nz" => [5], #Remember, that we are using order 4 elements
-    "mesh_rz" => [1.85]
+    "nz" => [12], #Remember, that we are using order 4 elements
+    "mesh_rz" => [1.1]
 )
+
+# ## Setting used in Rieke (2025) Energy paper
+# nz = 12
+# mesh_rz = 1.1
 
 #creates all possible combinations
 dicts = dict_list(allparams)
@@ -82,7 +86,7 @@ for (i, d) in enumerate(dicts)
     tick()
     result = makesim(d) # is a dict conainting the input and output of simulation
     #safesave("data/sims2011/"*savename(d, "jld2"), result)
-    safesave(datadir("fpv_202403", savename(d, "jld2")), result)
+    safesave(datadir("fpv_202508", savename(d, "jld2")), result)
     tock()
 end 
 
