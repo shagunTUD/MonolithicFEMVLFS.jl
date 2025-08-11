@@ -376,11 +376,11 @@ export run_beam
 
 
     # Not Empty tank    
+    @unpack emptyTankRef = params
     function RAO_revised(λin, η_a, ηdof) 
           
       #expand the vectors to the size of length(ω),length(probx)
-      daRef = wload(datadir("fpv_202401","empt",
-        "Empt_length_beam=100_mesh_size=1.0.jld2"))
+      daRef = wload(emptyTankRef)
       ηin_a_m = daRef["RAO_η"]      
       λin_m = repeat(λin,1,size(η_a)[2])     
       k_m = 2*π ./ λin_m            

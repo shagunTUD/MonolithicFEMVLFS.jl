@@ -42,11 +42,16 @@ allparams = Dict(
     "omega" => [ω],
     "depth" => [30],
     "amplitude" => [A_w],
-    "numFloat" => [1,2,5,10,25,50],
+    "numFloat" => [1,2,5,10,25,50]    
+)
 
-    "mesh_size" => [1.0],
-    "nz" => [5], #Remember, that we are using order 4 elements
-    "mesh_rz" => [1.85]
+
+defaultParams = Dict(
+    "mesh_size" => 1.0,
+    "nz" => 5, #Remember, that we are using order 4 elements
+    "mesh_rz" => 1.85,
+    "emptyTankRef" => datadir("fpv_202401","empt",
+        "Empt_length_beam=100_mesh_size=1.0.jld2")
 )
 
 #creates all possible combinations
@@ -55,8 +60,11 @@ tick()
 
 # ## Empty Tank
 # function makesim(d::Dict)    
-#     RAO_η, η_ϕ = beam.run_beam(d)
-#     fulld = copy(d)
+#     runDict = merge(d, defaultParams)
+
+#     RAO_η, η_ϕ = beam.run_beam(runDict)
+
+#     fulld = copy(runDict)
 #     fulld["RAO_η"] = RAO_η
 #     fulld["η_ϕ"] = η_ϕ
 #     return fulld
@@ -65,9 +73,13 @@ tick()
 
 ## Not Empty Tank
 function makesim(d::Dict)    
+
+    runDict = merge(d, defaultParams)
+    
     RAO_η, η_ϕ, da_wavePrb, ηdof_scaled,
-        EI, massPerArea = beam.run_beam(d)
-    fulld = copy(d)
+        EI, massPerArea = beam.run_beam(runDict)
+
+    fulld = copy(runDict)
     fulld["RAO_η"] = RAO_η            
     fulld["η_ϕ"] = η_ϕ    
     fulld["EI"] = EI
