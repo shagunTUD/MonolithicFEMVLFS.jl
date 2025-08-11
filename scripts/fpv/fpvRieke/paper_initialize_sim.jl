@@ -50,8 +50,8 @@ defaultParams = Dict(
     "mesh_size" => 1.0,
     "nz" => 12, #Remember, that we are using order 4 elements
     "mesh_rz" => 1.1,
-    "emptyTankRef" => datadir("fpv_202401","empt",
-        "Empt_length_beam=100_mesh_size=1.0.jld2")
+    "emptyTankRef" => datadir("fpv_202508","empt",
+        "Empt_depth=22.8_length_beam=100_mesh_size=1.0.jld2")
 )
 
 # ## Setting used in Rieke (2025) Energy paper

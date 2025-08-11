@@ -113,9 +113,15 @@ export run_beam
     # Draft 
     # α1_b = ρ_b*h_b/ρ_w        
     h_b_fill = h_b * (1.0 - hollowRatio)
-    α1_b = (ρ_b*h_b_fill*2.0 + 1800*0.002*1.42)/(2.0 * ρ_w)
-    # The 2.0 in the denominator is the water-plane area over which 
-    # the weight is distributed
+    
+    # ## Alba (2025) paper
+    # ## Including weight of the solar panel
+    # α1_b = (ρ_b*h_b_fill*2.0 + 1800*0.002*1.42)/(2.0 * ρ_w)
+    # # The 2.0 in the denominator is the water-plane area over which 
+    # # the weight is distributed
+
+    ## Default weight of pontoon only
+    α1_b = (ρ_b*h_b_fill)/(ρ_w)
     
     α2_b = EI_b/ρ_w
     massPerArea = α1_b * ρ_w
