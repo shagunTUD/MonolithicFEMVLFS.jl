@@ -180,7 +180,7 @@ for i in axes(daHs,1)
 
   # CSV.write(saveName, result[:,3:end]; delim = ';')
 
-  mat_data = Matrix(result[:, 3:end])
+  mat_data = Matrix(result[:, 3:end-2]) #eta_xx
   matopen(saveName, "w") do f
     write(f, "eta_xx", mat_data)
     write(f, "colnames", names(result[:, 3:end]))
