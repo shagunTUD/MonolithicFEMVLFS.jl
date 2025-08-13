@@ -17,6 +17,7 @@ using MAT
 
 
 include(srcdir("fpv","paper_freq_time_convert.jl"))
+include(srcdir("fpv","materials.jl"))
 
 ## Read batch case
 testID = 1  # default
@@ -31,7 +32,6 @@ end
 setList = CSV.read(scriptsdir("fpv","fpvRieke",
   "hourly_cases.csv"), DataFrame)
 
-fillRatio = 100
 
 ## Start processing
 daWave = CSV.read(scriptsdir("fpv","fpvRieke",
@@ -85,7 +85,7 @@ phaseRandomSeed = 100
 nHours = size(daHs,1)
 
 daReportNames = [
-  "Material", "Thickness", "FillRatio",
+  "Material", "Thickness", "hollowRatio",
   "Hour", "Daylight", 
   "depth", "Hs", "Tp",
   "phaseSeed"]
@@ -172,6 +172,9 @@ for i in axes(daHs,1)
   # result[:,3:end] = vals 
 
   result[:,3:end] = vals 
+
+  ρ_b, E, hollowRatio = give_material(da["material"])
+  I = 1/12*da["h_b"]^3 * (1.0 - hollowRatio^3)        # second moment of inertia per unit meter width (I/b) 
     
   saveName = fileName * "hour_"*@sprintf("%04i",i)*".mat"
 
@@ -181,14 +184,26 @@ for i in axes(daHs,1)
   matopen(saveName, "w") do f
     write(f, "BM", mat_data)
     write(f, "colnames", names(result[:, 3:end]))
+    write(f, "material", da["material"])
+    write(f, "rho_b", ρ_b)
+    write(f, "E", E)
+    write(f, "I", I)
+    write(f, "hollowRatio", hollowRatio)    
+    write(f, "h_b", da["h_b"])
+    write(f, "depth", da["depth"])
+    write(f, "Hs", Hs)
+    write(f, "Tp", Tp)
+    write(f, "phaseRandomSeed", phaseRandomSeed)
+    write(f, "daylight", day)
+    write(f, "hour", i)
   end
 
   # daReportNames = [
-  #   "Material", "Thickness", "FillRatio",
+  #   "Material", "Thickness", "hollowRatio",
   #   "Hour", "Daylight", 
   #   "depth", "Hs", "Tp",
   #   "phaseSeed"]  
-  daReport[i,:] = [da["material"], da["h_b"], fillRatio,
+  daReport[i,:] = [da["material"], da["h_b"], hollowRatio,
     i, day, 
     d, Hs, Tp, phaseRandomSeed]
 
