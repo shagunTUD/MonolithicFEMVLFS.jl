@@ -43,7 +43,8 @@ function freq_time_trans(rao,#::DataFrameRow,
       vector_type=Vector{ComplexF64})
 
 
-    xem_cords = 1:1:Lb
+    # xem_cords = 1:2:Lb #Alba paper
+    xem_cords = 1:1:Lb-1
     prb_xy = Point.(xem_cords)
     # xemIndex = 2:2:100
     # ----------------------End----------------------
