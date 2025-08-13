@@ -165,8 +165,17 @@ for i in axes(daHs,1)
   tRampMat = repeat(tRamp, 1, size(result,2)-2)
   vals = Matrix( result[:,3:end] )
   vals = vals .* tRampMat
-  vals = round.(vals, digits=4)
-  result[:,3:end] = vals 
+  
+  ## Alba Paper
+  # vals = round.(vals, digits=4)
+  # result[:,3:end] = vals 
+
+  
+  vals_str = [@sprintf("%.4e", x) for x in vals]
+  # Reshape back to the original dimensions
+  vals_str = reshape(vals_str, size(vals))
+  result[:, 3:end] .= vals_str  # store strings instead of floats
+
   
   saveName = fileName * "hour_"*@sprintf("%04i",i)*".csv"
 
