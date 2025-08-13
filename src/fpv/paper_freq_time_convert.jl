@@ -43,7 +43,7 @@ function freq_time_trans(rao,#::DataFrameRow,
       vector_type=Vector{ComplexF64})
 
 
-    xem_cords = 1:2:Lb
+    xem_cords = 1:1:Lb
     prb_xy = Point.(xem_cords)
     # xemIndex = 2:2:100
     # ----------------------End----------------------
@@ -99,6 +99,8 @@ function freq_time_trans(rao,#::DataFrameRow,
         length(prb_xy))
     ηx_real_time = zeros(Float64, size(ηdof_time,1), 
         length(prb_xy))
+    ηxx_real_time = zeros(Float64, size(ηdof_time,1), 
+        length(prb_xy))
 
 
     # Wave elvation x=0
@@ -127,7 +129,8 @@ function freq_time_trans(rao,#::DataFrameRow,
 
     for i in axes(ηdof_time,1)
         ηh = FEFunction(V_Γη, ηdof_time[i,:])
-        ηhx = ∇(ηh) ⋅ VectorValue(1.0) 
+        ηhx = ∇(ηh) ⋅ VectorValue(1.0)         
+        ηhxx = ∇∇(ηh) ⊙ TensorValue(1.0)   
 
         # Method 1: 50 sec
         # η_real_time[i,:] = real.(ηh.(prb_xy))
@@ -143,6 +146,9 @@ function freq_time_trans(rao,#::DataFrameRow,
         cache_ηx = Gridap.Arrays.return_cache(ηhx, prb_xy)      
         ηx_real_time[i,:] = real.(evaluate!(cache_ηx, ηhx, prb_xy))        
 
+        cache_ηxx = Gridap.Arrays.return_cache(ηhxx, prb_xy)      
+        ηxx_real_time[i,:] = real.(evaluate!(cache_ηxx, ηhxx, prb_xy))        
+
         # # Method 3: 
         # η_real_time[i,:] = real.(ηh.free_values[xemIndex])
         # ηx_real_time[i,:] = real.(ηhx.free_values[xemIndex])
@@ -154,7 +160,8 @@ function freq_time_trans(rao,#::DataFrameRow,
     end
     tock()
 
-    θ_time = atan.(ηx_real_time)*180/π #transform to degrees        
+    # θ_time = atan.(ηx_real_time)*180/π #transform to degrees        
+    θ_time = ηxx_real_time
 
     # plt1 = plot()
     # tindex = 1:25:1000
@@ -165,7 +172,7 @@ function freq_time_trans(rao,#::DataFrameRow,
     save_df_theta = DataFrame(zeros(nTSteps,size(θ_time,2)+4), :auto)
     rename!(save_df_theta, :x1 => :h_b)
     rename!(save_df_theta, :x2 => :material)
-    new_names = Symbol.("theta_x" .* string.(1:2:99))
+    new_names = Symbol.("BM_x" .* string.(1:1:99))
     rename!(save_df_theta, names(save_df_theta)[3:size(θ_time,2)+2] .=> new_names)    
     new_names = Symbol.("kappa_x" .* string.([0, 600]))
     rename!(save_df_theta, names(save_df_theta)[end-1:end] .=> new_names)    

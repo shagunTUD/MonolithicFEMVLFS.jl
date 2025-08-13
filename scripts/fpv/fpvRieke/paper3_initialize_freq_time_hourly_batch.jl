@@ -18,25 +18,27 @@ using Printf
 include(srcdir("fpv","paper_freq_time_convert.jl"))
 
 ## Read batch case
-try testID = parse(Int,ENV["CASE_ID"])
+testID = 1  # default
+try
+  global testID
+  testID = parse(Int, ENV["CASE_ID"])
 catch
-  testID = 1 #Change this to the row number in hourly_cases.csv that you want
+    # keep default
 end
+@show testID
 
-testID=2
-
-setList = CSV.read(scriptsdir("fpv","fpvRafael",
+setList = CSV.read(scriptsdir("fpv","fpvRieke",
   "hourly_cases.csv"), DataFrame)
 
 fillRatio = 100
 
 ## Start processing
-daWave = CSV.read(scriptsdir("fpv","fpvRafael",
-  "hourly_Hs_Tp_Day.csv"), DataFrame)
+daWave = CSV.read(scriptsdir("fpv","fpvRieke",
+  "hourly_Hs_Tp.csv"), DataFrame)
 
 daHs = daWave[:,1]
 daTp = daWave[:,2]
-daDay = daHs = daWave[:,3]
+daDay = daWave[:,3]
   
 
 @show setList[testID,:]
