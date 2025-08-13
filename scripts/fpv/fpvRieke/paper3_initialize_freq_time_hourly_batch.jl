@@ -13,6 +13,7 @@ using CSV
 using Statistics
 using TickTock
 using Printf
+using MAT
 
 
 include(srcdir("fpv","paper_freq_time_convert.jl"))
@@ -170,16 +171,17 @@ for i in axes(daHs,1)
   # vals = round.(vals, digits=4)
   # result[:,3:end] = vals 
 
-  
-  vals_str = [@sprintf("%.4e", x) for x in vals]
-  # Reshape back to the original dimensions
-  vals_str = reshape(vals_str, size(vals))
-  result[:, 3:end] .= vals_str  # store strings instead of floats
+  result[:,3:end] = vals 
+    
+  saveName = fileName * "hour_"*@sprintf("%04i",i)*".mat"
 
-  
-  saveName = fileName * "hour_"*@sprintf("%04i",i)*".csv"
+  # CSV.write(saveName, result[:,3:end]; delim = ';')
 
-  CSV.write(saveName, result[:,3:end]; delim = ';')
+  mat_data = Matrix(result[:, 3:end])
+  matopen(saveName, "w") do f
+    write(f, "BM", mat_data)
+    write(f, "colnames", names(result[:, 3:end]))
+  end
 
   # daReportNames = [
   #   "Material", "Thickness", "FillRatio",
