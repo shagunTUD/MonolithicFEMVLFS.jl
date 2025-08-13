@@ -182,7 +182,7 @@ for i in axes(daHs,1)
 
   mat_data = Matrix(result[:, 3:end])
   matopen(saveName, "w") do f
-    write(f, "BM", mat_data)
+    write(f, "eta_xx", mat_data)
     write(f, "colnames", names(result[:, 3:end]))
     write(f, "material", da["material"])
     write(f, "rho_b", ρ_b)
