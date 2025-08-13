@@ -1,0 +1,7 @@
+SN,folder,outFolder,File
+1,fpv_202508/caseHDPE_F100_T0p20,PLA-T20-NF01,depth=22.8_h_b=0.2_length_beam=100_material=hdpe_numFloat=1.jld2
+2,fpv_202508/caseHDPE_F100_T0p20,PLA-T20-NF02,depth=22.8_h_b=0.2_length_beam=100_material=hdpe_numFloat=2.jld2
+3,fpv_202508/caseHDPE_F100_T0p20,PLA-T20-NF05,depth=22.8_h_b=0.2_length_beam=100_material=hdpe_numFloat=5.jld2
+4,fpv_202508/caseHDPE_F100_T0p20,PLA-T20-NF10,depth=22.8_h_b=0.2_length_beam=100_material=hdpe_numFloat=10.jld2
+5,fpv_202508/caseHDPE_F100_T0p20,PLA-T20-NF25,depth=22.8_h_b=0.2_length_beam=100_material=hdpe_numFloat=25.jld2
+6,fpv_202508/caseHDPE_F100_T0p20,PLA-T20-NF50,depth=22.8_h_b=0.2_length_beam=100_material=hdpe_numFloat=50.jld2
