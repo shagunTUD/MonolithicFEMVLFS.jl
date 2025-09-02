@@ -23,8 +23,12 @@ resDir::String = "data/sims_202508/mem_modes_free/"
 mfac = [0.9] 
 tfac = [0.1] 
 
-resMᵨ = [1]
-resKᵨ = [2.1*2.1*0]
+ωr = collect(1.0:0.1:5.0)
+resMᵨ = ones(length(ωr))
+resKᵨ = [ iM*iωr*iωr for (iM, iωr) in zip(resMᵨ, ωr) ]
+
+# resMᵨ = [1]
+# resKᵨ = [ 0.0*1.0 ]
 
 H0 = 10
 
@@ -48,7 +52,7 @@ paramsBase = Membrane_modes.MembLR_params(
   maxIter = 20,
 
   # initial guess for natural frequencies
-  ωn_guess = zeros(ComplexF64, 1) .+ 1.0
+  ωn_guess = zeros(ComplexF64, 1) .+ 0.5
 )
 
 

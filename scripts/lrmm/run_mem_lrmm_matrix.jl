@@ -1,6 +1,7 @@
 using DrWatson
 using Parameters
 using Gridap
+using Printf
 using WaveSpec
 using .Constants
 using MonolithicFEMVLFS.Resonator
@@ -16,6 +17,10 @@ resDir::String = "data/sims_202508/run"
 # Warm-up run
 params = Memb2D.Memb_params_warmup(name = resDir)
 Memb2D.main(params)
+
+ωr = collect(1.0:0.1:5.0)
+resM = ones(length(ωr))*ρw
+resK = [ iM*iωr*iωr for (iM, iωr) in zip(resM, ωr) ]
 
 # Production run
 @with_kw struct run_params
@@ -98,5 +103,33 @@ Memb2D.main(params)
   prbPowx=[ 55.0, 125.0 ]
 
 end
-params = run_params()
-Memb2D.main(params)
+
+default_params = run_params()
+
+
+# Loop over all combinations of resonator parameters
+for (iresM, iresK) in zip(resM, resK)  
+
+  local resDir, rS, paramsLoc
+
+  resDir = "data/sims_202508/mem_ten0.10_mass0.90/"
+  resDir = resDir*"res_m=" * @sprintf("%0.2f", iresM) *
+    "_k=" * @sprintf("%0.2f", iresK)
+  
+  if( isdir(resDir))
+    rm(resDir; recursive=true)
+    @printf("Removed old data in %s\n", resDir)
+  end
+  mkdir(resDir)
+
+  rS = Resonator.Array1D(
+    1, 
+    [iresM], 
+    [iresK], 
+    [0.0],
+    [Point(default_params.xm₀ + default_params.Lm/2.0,0.0)]    
+  )
+  
+  paramsLoc = run_params(name = resDir, rS = rS)
+  Memb2D.main(paramsLoc)
+end

@@ -527,7 +527,8 @@ function main(params)
               "prbDaΓκ" => prbDaΓκ,
               "prbDaΓη" => prbDaΓη,
               "prbPow" => prbPow,
-              "rS" => rS )
+              "rS" => rS,
+              "params" => params )
 
   wsave(filename*"_data.jld2", data)
 
