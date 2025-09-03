@@ -7,7 +7,6 @@ using .Constants
 using MonolithicFEMVLFS.Resonator
 @quickactivate "MonolithicFEMVLFS.jl"
 
-
 # include(srcdir("lrmmModal","memModes_lrmm_free_iter.jl"))
 include(srcdir("lrmmModal","memSysModes_lrmm_free_iter.jl"))
 
@@ -25,12 +24,9 @@ resDir::String = "data/sims_202508/mem_modes_free/"
 mfac = [0.9] 
 tfac = [0.1] 
 
-# ωr = collect(1.0:0.1:5.0)
-# resMᵨ = ones(length(ωr))
-# resKᵨ = [ iM*iωr*iωr for (iM, iωr) in zip(resMᵨ, ωr) ]
-
-resMᵨ = [ 1.0 ]
-resKᵨ = [ 1.0 ]
+ωr = collect(1.0:0.1:5.0)
+resMᵨ = ones(length(ωr))
+resKᵨ = [ iM*iωr*iωr for (iM, iωr) in zip(resMᵨ, ωr) ]
 
 H0 = 10
 
@@ -47,7 +43,7 @@ paramsBase = Membrane_modes.MembLR_params(
   # tfac = itfac,
   # rS_by_ρw = rS,
 
-  nωₙ = 6, #number of natural frequencies to compute
+  nωₙ = 7, #number of natural frequencies to compute
 
   # Iterative solution for wet natural frequencies
   αRelax = 0.8,
@@ -69,9 +65,8 @@ for (iresMᵨ, iresKᵨ) in zip(resMᵨ, resKᵨ)
     for itfac in tfac
 
       # Case directory
-      # caseName = "mem_modes_ten" * @sprintf("%0.2f", itfac) *
-      #   "_mass" * @sprintf("%0.2f", imfac)
-      caseName = "run"
+      caseName = "mem_modes_ten" * @sprintf("%0.2f", itfac) *
+        "_mass" * @sprintf("%0.2f", imfac)
 
       caseDir = resDir*caseName
       # if( isdir(caseDir) )
