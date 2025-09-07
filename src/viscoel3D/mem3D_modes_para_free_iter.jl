@@ -39,6 +39,10 @@ function run_case(params, mfac = 0.9, tfac = 0.1)
     Mhat = C12 * (Mϕ \ C21)
     Mtot = M11 + Mhat
     tock()
+
+    # TODO: Possible Mistake. 
+    # Take only real.(Mtot) for mode calc
+    # imag.(Mtot) is actually added damping matrix!
   
     # Eigen values
     λ = LinearAlgebra.eigvals(Mtot\Matrix(K11))
