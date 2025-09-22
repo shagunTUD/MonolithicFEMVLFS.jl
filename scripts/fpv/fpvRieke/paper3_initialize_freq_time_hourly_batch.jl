@@ -30,12 +30,12 @@ end
 @show testID
 
 setList = CSV.read(scriptsdir("fpv","fpvRieke",
-  "hourly_cases.csv"), DataFrame)
+  "trial02/hourly_cases.csv"), DataFrame)
 
 
 ## Start processing
 daWave = CSV.read(scriptsdir("fpv","fpvRieke",
-  "hourly_Hs_Tp.csv"), DataFrame)
+  "trial02/hourly_Hs_Tp.csv"), DataFrame)
 
 daHs = daWave[:,1]
 daTp = daWave[:,2]
@@ -80,7 +80,7 @@ rampT = 0 #s each end
 t = 0:dt:tEnd
 tRamp = rampWindow(t, rampT)
 
-phaseRandomSeed = 100
+# phaseRandomSeed = 100
 
 nHours = size(daHs,1)
 
@@ -147,6 +147,9 @@ for i in axes(daHs,1)
   else
     println("----Day----")
   end
+
+  phaseRandomSeed = rand(100:999)
+  @show phaseRandomSeed
 
 
   #spectrum_df = DataFrame(frequency = ω, amplitude = A, wavenumber = k, phaseshift = α, wavelength = λ)
