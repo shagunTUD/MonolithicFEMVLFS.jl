@@ -296,11 +296,16 @@ function run_case( params )
     # # ωₙ = sqrt.(real.(λ))
 
     # Eigen values memb only
-    Sol = MFull \ KFull
-    λ = LinearAlgebra.eigvals(Sol)
-    V = LinearAlgebra.eigvecs(Sol)          
+    # Sol = MFull \ KFull # Keeping the complex valued matrices
+    MFullReal = real.(MFull)
+    Sol = MFullReal \ KFull
 
-    meff = diag(transpose(V[:,1:nωₙ]) * MFull * V[:,1:nωₙ])
+    # Sol = MFull \ KFull
+    λ = LinearAlgebra.eigvals(Sol)
+    V = LinearAlgebra.eigvecs(Sol)      
+
+    # meff = diag(transpose(V[:,1:nωₙ]) * MFull * V[:,1:nωₙ])
+    meff = diag(transpose(V[:,1:nωₙ]) * MFullReal * V[:,1:nωₙ])
 
     # Wrong
     # Ur, S, Vr = svd(Mtot\Matrix(K11))    
