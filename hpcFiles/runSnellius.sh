@@ -14,5 +14,5 @@
 # mpiexecjl --project=../ -n 1 julia -J ../PerforatedCylinder_parallel.so -O3 --check-bounds=no -e 'include("run_case_serial.jl")' &
 srun -N1 -n1 -c1 --mem-per-cpu 8000MB --exact \
 julia --project=. -O3 --check-bounds=no \
-./scripts/fpv/fpvRieke/paper_initialize_sim_empty.jl
+./scripts/fpv/fpvRieke/paper_initialize_sim.jl
 

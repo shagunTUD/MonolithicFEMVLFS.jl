@@ -30,12 +30,12 @@ end
 @show testID
 
 setList = CSV.read(scriptsdir("fpv","fpvRieke",
-  "trial02/hourly_cases.csv"), DataFrame)
+  "caseE0p5_F100_T0p20_ss02/hourly_cases.csv"), DataFrame)
 
 
 ## Start processing
 daWave = CSV.read(scriptsdir("fpv","fpvRieke",
-  "trial02/hourly_Hs_Tp.csv"), DataFrame)
+  "caseE0p5_F100_T0p20_ss02/hourly_Hs_Tp.csv"), DataFrame)
 
 daHs = daWave[:,1]
 daTp = daWave[:,2]
